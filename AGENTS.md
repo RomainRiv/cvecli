@@ -1,10 +1,10 @@
 # AGENTS.md
 
-This document provides essential information for AI agents working in the cvec repository.
+This document provides essential information for AI agents working in the cvecli repository.
 
 ## Project Overview
 
-**cvec** is a CLI tool for downloading, extracting, and searching CVE (Common Vulnerabilities and Exposures) data. It's a Python package that provides both a command-line interface and a library for working with CVE data in parquet format.
+**cvecli** is a CLI tool for downloading, extracting, and searching CVE (Common Vulnerabilities and Exposures) data. It's a Python package that provides both a command-line interface and a library for working with CVE data in parquet format.
 
 - **Language**: Python 3.10+ (currently uses 3.12)
 - **Package Manager**: uv (modern, fast Python package manager)
@@ -16,8 +16,8 @@ This document provides essential information for AI agents working in the cvec r
 ## Project Structure
 
 ```
-cvec/
-├── src/cvec/              # Source code
+cvecli/
+├── src/cvecli/              # Source code
 │   ├── cli/              # CLI commands (Typer-based)
 │   ├── core/             # Configuration management
 │   ├── models/           # Pydantic data models
@@ -51,7 +51,7 @@ uv pip install ".[semantic]"
 
 # Run commands in the uv-managed environment
 uv run pytest
-uv run cvec search "linux"
+uv run cvecli search "linux"
 uv run black src/
 ```
 
@@ -124,7 +124,7 @@ uv run pytest tests/ -v
 # With coverage report
 just test-cov
 # or
-uv run pytest tests/ -v --cov=src/cvec --cov-report=term-missing --cov-report=html
+uv run pytest tests/ -v --cov=src/cvecli --cov-report=term-missing --cov-report=html
 
 # Run specific test file
 uv run pytest tests/test_search.py -v
@@ -206,30 +206,30 @@ dev = ["pytest>=8.0.0", "pytest-cov>=4.1.0", "types-requests", "black", "mypy", 
 
 The CLI is built with Typer and has two main command groups:
 
-### Database Management (`cvec db`)
+### Database Management (`cvecli db`)
 
 ```bash
 # For regular users:
-cvec db update              # Download pre-built parquet files (recommended)
-cvec db status              # Show database status
+cvecli db update              # Download pre-built parquet files (recommended)
+cvecli db status              # Show database status
 
-# For advanced users / CI (cvec db build):
-cvec db build download-json        # Download raw JSON files
-cvec db build extract-parquet      # Convert JSON to parquet
-cvec db build extract-embeddings   # Generate embeddings for semantic search
-cvec db build create-manifest      # Create manifest.json for distribution
+# For advanced users / CI (cvecli db build):
+cvecli db build download-json        # Download raw JSON files
+cvecli db build extract-parquet      # Convert JSON to parquet
+cvecli db build extract-embeddings   # Generate embeddings for semantic search
+cvecli db build create-manifest      # Create manifest.json for distribution
 ```
 
 ### Search & Query
 
 ```bash
-cvec search "linux kernel"                    # Basic search
-cvec search --vendor "Microsoft" "Windows"    # Vendor filter
-cvec search --severity critical               # Severity filter
-cvec search --semantic "memory corruption"    # Semantic search (requires semantic extras)
-cvec search --purl "pkg:pypi/django"          # Package URL search (CVE schema 5.2+)
-cvec get CVE-2024-1234                       # Get specific CVE
-cvec stats                                    # Database statistics
+cvecli search "linux kernel"                    # Basic search
+cvecli search --vendor "Microsoft" "Windows"    # Vendor filter
+cvecli search --severity critical               # Severity filter
+cvecli search --semantic "memory corruption"    # Semantic search (requires semantic extras)
+cvecli search --purl "pkg:pypi/django"          # Package URL search (CVE schema 5.2+)
+cvecli get CVE-2024-1234                       # Get specific CVE
+cvecli stats                                    # Database statistics
 ```
 
 ### Package URL (PURL) Search
@@ -266,19 +266,19 @@ Note: The PURL in CVE records should NOT include a version, as version informati
 
 ### Configuration
 
-Configuration is managed by `Config` class in `src/cvec/core/config.py`:
+Configuration is managed by `Config` class in `src/cvecli/core/config.py`:
 - Defaults to project-relative paths (`data/`, `download/`)
 - Can be overridden with environment variables:
   - `CVE_DATA_DIR`: Data directory
   - `CVE_DOWNLOAD_DIR`: Download directory
   - `CVE_DEFAULT_YEARS`: Years to download (default: 10)
 - Can be overridden per-command with `--data-dir` parameter:
-  - `cvec db update --data-dir /path/to/data`
-  - `cvec db status --data-dir /path/to/data`
-  - `cvec db build download-json --data-dir /path/to/data`
-  - `cvec db build extract-parquet --data-dir /path/to/data`
-  - `cvec db build extract-embeddings --data-dir /path/to/data`
-  - `cvec db build create-manifest --data-dir /path/to/data`
+  - `cvecli db update --data-dir /path/to/data`
+  - `cvecli db status --data-dir /path/to/data`
+  - `cvecli db build download-json --data-dir /path/to/data`
+  - `cvecli db build extract-parquet --data-dir /path/to/data`
+  - `cvecli db build extract-embeddings --data-dir /path/to/data`
+  - `cvecli db build create-manifest --data-dir /path/to/data`
 
 ## CI/CD
 
@@ -323,7 +323,7 @@ just test
 ```bash
 # 1. Clone repository
 git clone <repo-url>
-cd cvec
+cd cvecli
 
 # 2. Ensure uv is installed
 # See: https://docs.astral.sh/uv/
@@ -334,13 +334,13 @@ just sync
 uv sync --all-extras
 
 # 4. Verify installation
-uv run cvec --help
+uv run cvecli --help
 ```
 
 ### Making Changes
 
 ```bash
-# 1. Create/edit code in src/cvec/
+# 1. Create/edit code in src/cvecli/
 
 # 2. Format code
 just format
@@ -375,33 +375,33 @@ uv add --dev <package-name>
 just build
 
 # Output will be in dist/
-# - dist/cvec-0.1.0-py3-none-any.whl
-# - dist/cvec-0.1.0.tar.gz
+# - dist/cvecli-0.1.0-py3-none-any.whl
+# - dist/cvecli-0.1.0.tar.gz
 ```
 
 ## Key Services
 
-### DownloadService (`src/cvec/services/downloader.py`)
+### DownloadService (`src/cvecli/services/downloader.py`)
 - Downloads raw CVE JSON files from GitHub
 - Supports year-based filtering
 - Handles CAPEC/CWE downloads
 
-### ExtractorService (`src/cvec/services/extractor.py`)
+### ExtractorService (`src/cvecli/services/extractor.py`)
 - Converts JSON files to normalized Parquet format
 - Creates multiple related tables (products, metrics, descriptions, etc.)
 - Uses Polars for efficient processing
 
-### CVESearchService (`src/cvec/services/search.py`)
+### CVESearchService (`src/cvecli/services/search.py`)
 - Searches across multiple dimensions (product, vendor, CWE, severity)
 - Supports semantic search with embeddings
 - Returns SearchResult objects with rich filtering
 
-### EmbeddingsService (`src/cvec/services/embeddings.py`)
+### EmbeddingsService (`src/cvecli/services/embeddings.py`)
 - Generates embeddings for semantic search
 - Optional dependency (fastembed)
 - Creates `cve_embeddings.parquet`
 
-### ArtifactFetcher (`src/cvec/services/artifact_fetcher.py`)
+### ArtifactFetcher (`src/cvecli/services/artifact_fetcher.py`)
 - Fetches pre-built database files from GitHub releases
 - Validates checksums
 - Checks schema version compatibility
@@ -420,7 +420,7 @@ just build
 
 6. **Multiple parquet files**: The database is normalized across multiple parquet files (cves, products, metrics, etc.). This is intentional for efficient querying.
 
-7. **CVE Model exclusion**: `src/cvec/models/cve_model.py` is excluded from Black formatting (it's auto-generated).
+7. **CVE Model exclusion**: `src/cvecli/models/cve_model.py` is excluded from Black formatting (it's auto-generated).
 
 8. **Type checking has errors**: `just typecheck` may show errors. It's set to `continue-on-error` in CI.
 
@@ -451,7 +451,7 @@ just sync
 # Install semantic extras
 uv pip install -e ".[semantic]"
 # Generate embeddings
-uv run cvec db build extract-embeddings
+uv run cvecli db build extract-embeddings
 ```
 
 ## Resources
@@ -460,7 +460,7 @@ uv run cvec db build extract-embeddings
 - **just documentation**: https://just.systems/man/en/
 - **Polars documentation**: https://pola.rs/
 - **Typer documentation**: https://typer.tiangolo.com/
-- **CVE Database**: https://github.com/RomainRiv/cvec-db
+- **CVE Database**: https://github.com/RomainRiv/cvecli-db
 
 ## Quick Reference
 

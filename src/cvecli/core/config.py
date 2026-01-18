@@ -1,4 +1,4 @@
-"""Core configuration for cvec."""
+"""Core configuration for cvecli."""
 
 import os
 from datetime import datetime
@@ -16,7 +16,7 @@ CURRENT_YEAR = datetime.now().year
 
 
 class Config:
-    """Configuration management for cvec.
+    """Configuration management for cvecli.
 
     Reads from environment variables or uses defaults.
     """
@@ -27,7 +27,7 @@ class Config:
         download_dir: Optional[Path] = None,
         default_years: Optional[int] = None,
     ):
-        # Resolve project root (assuming config.py is in src/cvec/core/)
+        # Resolve project root (assuming config.py is in src/cvecli/core/)
         self._project_root = Path(__file__).parent.parent.parent.parent
 
         # Data directory

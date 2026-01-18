@@ -1,5 +1,5 @@
 [project]
-name = "cvec"
+name = "cvecli"
 version = "0.1.0"
 description = "CLI tool for downloading, extracting, and searching CVE data"
 readme = "README.md"
@@ -33,7 +33,7 @@ dev = [
 ]
 
 [project.scripts]
-cvec = "cvec.cli.main:main"
+cvecli = "cvecli.cli.main:main"
 
 [tool.uv]
 package = true
@@ -43,7 +43,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/cvec"]
+packages = ["src/cvecli"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -63,7 +63,7 @@ exclude = '''
   | build
   | dist
   | __pycache__
-  | src/cvec/models/cve_model\.py
+  | src/cvecli/models/cve_model\.py
 )
 '''
 

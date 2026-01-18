@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cvec.cli.formatters import get_severity_info
+from cvecli.cli.formatters import get_severity_info
 
 
 class TestGetSeverity:
@@ -152,7 +152,7 @@ class TestOutputFormat:
 
     def test_output_format_values(self):
         """OutputFormat should have expected values."""
-        from cvec.cli.formatters import OutputFormat
+        from cvecli.cli.formatters import OutputFormat
 
         assert OutputFormat.JSON == "json"
         assert OutputFormat.TABLE == "table"
@@ -164,7 +164,7 @@ class TestCVEIDPattern:
 
     def test_valid_cve_id_patterns(self):
         """Valid CVE ID formats should match."""
-        from cvec.cli.main import CVE_ID_PATTERN
+        from cvecli.cli.main import CVE_ID_PATTERN
 
         # Standard formats
         assert CVE_ID_PATTERN.match("CVE-2024-1234") is not None
@@ -177,7 +177,7 @@ class TestCVEIDPattern:
 
     def test_invalid_cve_id_patterns(self):
         """Invalid CVE ID formats should not match."""
-        from cvec.cli.main import CVE_ID_PATTERN
+        from cvecli.cli.main import CVE_ID_PATTERN
 
         # Too few digits in sequence number
         assert CVE_ID_PATTERN.match("CVE-2024-123") is None
@@ -200,13 +200,13 @@ class TestCVEAutoDetect:
 
     def test_is_cve_id_with_standard_format(self):
         """Standard CVE ID should be detected."""
-        from cvec.cli.main import CVE_ID_PATTERN
+        from cvecli.cli.main import CVE_ID_PATTERN
 
         assert CVE_ID_PATTERN.match("CVE-2024-1234") is not None
 
     def test_is_not_cve_id_with_product_name(self):
         """Product names should not be detected as CVE IDs."""
-        from cvec.cli.main import CVE_ID_PATTERN
+        from cvecli.cli.main import CVE_ID_PATTERN
 
         # These are product searches, not CVE IDs
         assert CVE_ID_PATTERN.match("openssl") is None
@@ -215,7 +215,7 @@ class TestCVEAutoDetect:
 
     def test_is_not_cve_id_with_cwe(self):
         """CWE IDs should not be detected as CVE IDs."""
-        from cvec.cli.main import CVE_ID_PATTERN
+        from cvecli.cli.main import CVE_ID_PATTERN
 
         assert CVE_ID_PATTERN.match("CWE-79") is None
         assert CVE_ID_PATTERN.match("CWE-1234") is None
@@ -228,7 +228,7 @@ class TestCLISearchFilters:
         """Search command with --cwe filter."""
         from typer.testing import CliRunner
 
-        from cvec.cli.main import app
+        from cvecli.cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(
@@ -250,7 +250,7 @@ class TestCLISearchFilters:
         """Search command with --cvss-min filter."""
         from typer.testing import CliRunner
 
-        from cvec.cli.main import app
+        from cvecli.cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(
@@ -272,7 +272,7 @@ class TestCLISearchFilters:
         """Search command with both --cvss-min and --cvss-max."""
         from typer.testing import CliRunner
 
-        from cvec.cli.main import app
+        from cvecli.cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(
@@ -296,7 +296,7 @@ class TestCLISearchFilters:
         """Search command with --sort date."""
         from typer.testing import CliRunner
 
-        from cvec.cli.main import app
+        from cvecli.cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(
@@ -318,7 +318,7 @@ class TestCLISearchFilters:
         """Search command with --sort cvss."""
         from typer.testing import CliRunner
 
-        from cvec.cli.main import app
+        from cvecli.cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(
@@ -340,7 +340,7 @@ class TestCLISearchFilters:
         """Search command with --sort and --order."""
         from typer.testing import CliRunner
 
-        from cvec.cli.main import app
+        from cvecli.cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(
@@ -364,7 +364,7 @@ class TestCLISearchFilters:
         """Search command with --ids-only flag."""
         from typer.testing import CliRunner
 
-        from cvec.cli.main import app
+        from cvecli.cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(
@@ -387,7 +387,7 @@ class TestCLISearchFilters:
         """Search command with --stats flag."""
         from typer.testing import CliRunner
 
-        from cvec.cli.main import app
+        from cvecli.cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(
@@ -414,7 +414,7 @@ class TestCLISearchFilters:
         """Search with --cwe and no query should work."""
         from typer.testing import CliRunner
 
-        from cvec.cli.main import app
+        from cvecli.cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(
@@ -435,7 +435,7 @@ class TestCLISearchFilters:
         """Search with multiple filters combined."""
         from typer.testing import CliRunner
 
-        from cvec.cli.main import app
+        from cvecli.cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(
@@ -465,7 +465,7 @@ class TestCLIGetCommand:
         """Get command with single CVE ID."""
         from typer.testing import CliRunner
 
-        from cvec.cli.main import app
+        from cvecli.cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(
@@ -481,7 +481,7 @@ class TestCLIGetCommand:
         """Get command with multiple CVE IDs."""
         from typer.testing import CliRunner
 
-        from cvec.cli.main import app
+        from cvecli.cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(
@@ -498,7 +498,7 @@ class TestCLIGetCommand:
         """Get command with --detailed flag."""
         from typer.testing import CliRunner
 
-        from cvec.cli.main import app
+        from cvecli.cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(
@@ -513,7 +513,7 @@ class TestCLIGetCommand:
         """Get command with non-existent CVE should show warning."""
         from typer.testing import CliRunner
 
-        from cvec.cli.main import app
+        from cvecli.cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(
@@ -529,7 +529,7 @@ class TestCLIGetCommand:
         """Get command with mix of valid and invalid CVE IDs."""
         from typer.testing import CliRunner
 
-        from cvec.cli.main import app
+        from cvecli.cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(
@@ -549,7 +549,7 @@ class TestCLIStatsCommand:
         """Stats command basic execution."""
         from typer.testing import CliRunner
 
-        from cvec.cli.main import app
+        from cvecli.cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(
@@ -567,7 +567,7 @@ class TestCLIStatsCommand:
 
         from typer.testing import CliRunner
 
-        from cvec.cli.main import app
+        from cvecli.cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(
@@ -585,7 +585,7 @@ class TestCLIStatsCommand:
         """Stats command with --output to file."""
         from typer.testing import CliRunner
 
-        from cvec.cli.main import app
+        from cvecli.cli.main import app
 
         runner = CliRunner()
         output_file = tmp_path / "stats.json"

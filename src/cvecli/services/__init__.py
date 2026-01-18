@@ -1,13 +1,13 @@
-"""Services module for cvec."""
+"""Services module for cvecli."""
 
-from cvec.services.artifact_fetcher import (
+from cvecli.services.artifact_fetcher import (
     ArtifactFetcher,
     ChecksumMismatchError,
     ManifestIncompatibleError,
 )
-from cvec.services.downloader import DownloadService
-from cvec.services.extractor import ExtractorService
-from cvec.services.search import CVESearchService
+from cvecli.services.downloader import DownloadService
+from cvecli.services.extractor import ExtractorService
+from cvecli.services.search import CVESearchService
 
 __all__ = [
     "ArtifactFetcher",

@@ -8,7 +8,7 @@ from typing import Generator
 import polars as pl
 import pytest
 
-from cvec.core.config import Config
+from cvecli.core.config import Config
 
 # =============================================================================
 # Sample CVE Data - Real-world examples
@@ -728,7 +728,7 @@ def sample_parquet_data(temp_config: Config) -> Config:
 @pytest.fixture
 def sample_parquet_data_with_embeddings(sample_parquet_data) -> Config:
     """Create sample Parquet files including embeddings for semantic search tests."""
-    from cvec.services.embeddings import EMBEDDING_DIMENSION
+    from cvecli.services.embeddings import EMBEDDING_DIMENSION
 
     # Create embeddings for all CVEs in sample_parquet_data
     # Use simple normalized vectors for testing

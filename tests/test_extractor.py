@@ -1,7 +1,7 @@
 """Unit tests for the extractor service."""
 
-from cvec.models.cve_model import CveJsonRecordFormat
-from cvec.services.extractor import (
+from cvecli.models.cve_model import CveJsonRecordFormat
+from cvecli.services.extractor import (
     CVECWE,
     CVEDescription,
     CVEMetric,

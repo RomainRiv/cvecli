@@ -8,9 +8,9 @@ The embeddings are computed from the concatenation of CVE title and description,
 enabling semantic search capabilities across the CVE database.
 
 Note: This module requires the optional 'semantic' dependencies:
-    pip install cvec[semantic]
+    pip install cvecli[semantic]
     # or with uv:
-    uv pip install cvec[semantic]
+    uv pip install cvecli[semantic]
 """
 
 from pathlib import Path
@@ -25,7 +25,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from cvec.core.config import Config, get_config
+from cvecli.core.config import Config, get_config
 
 # Check for optional dependencies
 _SEMANTIC_AVAILABLE = False
@@ -51,8 +51,8 @@ class SemanticDependencyError(Exception):
         self.operation = operation
         super().__init__(
             f"Cannot perform {operation}: fastembed is not installed.\n"
-            f"Install with: pip install cvec[semantic]\n"
-            f"Or with uv: uv pip install cvec[semantic]"
+            f"Install with: pip install cvecli[semantic]\n"
+            f"Or with uv: uv pip install cvecli[semantic]"
         )
 
 
@@ -294,7 +294,7 @@ class EmbeddingsService:
 
         if not cves_path.exists():
             raise FileNotFoundError(
-                f"CVE data not found at {cves_path}. Run 'cvec db update' or 'cvec db build extract-parquet' first."
+                f"CVE data not found at {cves_path}. Run 'cvecli db update' or 'cvecli db build extract-parquet' first."
             )
 
         cves_df = pl.read_parquet(cves_path)
@@ -383,7 +383,7 @@ class EmbeddingsService:
         if not embeddings_path.exists():
             raise FileNotFoundError(
                 f"Embeddings not found at {embeddings_path}. "
-                "Run 'cvec db update --embeddings' to download or 'cvec db build extract-embeddings' to generate locally."
+                "Run 'cvecli db update --embeddings' to download or 'cvecli db build extract-embeddings' to generate locally."
             )
 
         # Load embeddings
