@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cvec.core.config import Config
-from cvec.services.artifact_fetcher import (
+from cvecli.core.config import Config
+from cvecli.services.artifact_fetcher import (
     ArtifactFetcher,
     ChecksumMismatchError,
     ManifestIncompatibleError,
@@ -109,7 +109,7 @@ class TestArtifactFetcherInit:
     def test_default_config(self):
         """Test that default config is used when not provided."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("cvec.services.artifact_fetcher.get_config") as mock_get_config:
+            with patch("cvecli.services.artifact_fetcher.get_config") as mock_get_config:
                 mock_config = MagicMock()
                 mock_config.data_dir = Path(tmpdir)
                 mock_get_config.return_value = mock_config
@@ -128,7 +128,7 @@ class TestArtifactFetcherInit:
 
     def test_env_var_repo(self, temp_config):
         """Test repository can be set via environment variable."""
-        with patch.dict("os.environ", {"CVEC_DB_REPO": "env/repo"}):
+        with patch.dict("os.environ", {"CVECLI_DB_REPO": "env/repo"}):
             fetcher = ArtifactFetcher(config=temp_config)
             assert fetcher.repo == "env/repo"
 

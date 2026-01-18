@@ -1,4 +1,4 @@
-"""Output formatters for cvec CLI.
+"""Output formatters for cvecli CLI.
 
 This module provides formatting utilities for displaying search results
 in various formats (table, JSON, markdown) with rich console output.
@@ -14,7 +14,7 @@ from rich.table import Table
 from rich.text import Text
 
 if TYPE_CHECKING:
-    from cvec.services.search import CVESearchService, SearchResult
+    from cvecli.services.search import CVESearchService, SearchResult
 
 
 console = Console()
@@ -378,7 +378,7 @@ def output_search_results_detailed(
     """Output search results with detailed CVE information.
 
     This shows each CVE with description and key details,
-    similar to 'cvec get' but more compact for multiple results.
+    similar to 'cvecli get' but more compact for multiple results.
 
     Args:
         result: Search results to output.

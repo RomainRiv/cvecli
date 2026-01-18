@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from cvec.cli.main import app
+from cvecli.cli.main import app
 
 
 class TestOutputFileJSON:

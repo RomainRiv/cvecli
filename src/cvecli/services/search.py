@@ -18,9 +18,9 @@ from typing import Any, Dict, List, Literal, Optional
 
 import polars as pl
 
-from cvec.core.config import Config, get_config
-from cvec.services.cpe import parse_cpe
-from cvec.services.version import is_version_affected
+from cvecli.core.config import Config, get_config
+from cvecli.services.cpe import parse_cpe
+from cvecli.services.version import is_version_affected
 
 # Severity levels based on CVSS scores
 SEVERITY_THRESHOLDS = {
@@ -212,7 +212,7 @@ class CVESearchService:
             cves_path = self.config.cves_parquet
             if not cves_path.exists():
                 raise FileNotFoundError(
-                    f"CVE data not found at {cves_path}. Run 'cvec db update' or 'cvec db build extract-parquet' first."
+                    f"CVE data not found at {cves_path}. Run 'cvecli db update' or 'cvecli db build extract-parquet' first."
                 )
             self._cves_df = pl.read_parquet(cves_path)
 
@@ -941,10 +941,10 @@ class CVESearchService:
             FileNotFoundError: If embeddings have not been generated.
             SemanticDependencyError: If semantic dependencies are not installed.
         """
-        from cvec.services.embeddings import EmbeddingsService, is_semantic_available
+        from cvecli.services.embeddings import EmbeddingsService, is_semantic_available
 
         if not is_semantic_available():
-            from cvec.services.embeddings import SemanticDependencyError
+            from cvecli.services.embeddings import SemanticDependencyError
 
             raise SemanticDependencyError("semantic search")
 

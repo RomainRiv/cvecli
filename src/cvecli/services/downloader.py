@@ -17,7 +17,7 @@ from rich.progress import (
     TransferSpeedColumn,
 )
 
-from cvec.core.config import Config, get_config
+from cvecli.core.config import Config, get_config
 
 # Data source URLs
 CAPEC_URL = "https://capec.mitre.org/data/xml/capec_latest.xml"

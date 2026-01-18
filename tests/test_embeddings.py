@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from cvec.services.embeddings import (
+from cvecli.services.embeddings import (
     EmbeddingsService,
     DEFAULT_MODEL_NAME,
     EMBEDDING_DIMENSION,
@@ -161,7 +161,7 @@ class TestPrepareTexts:
 class TestGenerateEmbeddings:
     """Tests for embedding generation."""
 
-    @patch("cvec.services.embeddings.EmbeddingsService._get_model")
+    @patch("cvecli.services.embeddings.EmbeddingsService._get_model")
     def test_generate_embeddings_basic(self, mock_get_model):
         """Should generate embeddings for CVE data."""
         # Mock the model - fastembed's embed returns a generator
@@ -195,7 +195,7 @@ class TestGenerateEmbeddings:
         assert "embedding" in result.columns
         assert result["cve_id"][0] == "CVE-2024-1234"
 
-    @patch("cvec.services.embeddings.EmbeddingsService._get_model")
+    @patch("cvecli.services.embeddings.EmbeddingsService._get_model")
     def test_generate_embeddings_empty_data(self, mock_get_model):
         """Should handle empty data gracefully."""
         cves_df = pl.DataFrame(schema={"cve_id": pl.Utf8, "cna_title": pl.Utf8})
@@ -219,7 +219,7 @@ class TestGenerateEmbeddings:
 class TestEncodeQuery:
     """Tests for query encoding."""
 
-    @patch("cvec.services.embeddings.EmbeddingsService._get_model")
+    @patch("cvecli.services.embeddings.EmbeddingsService._get_model")
     def test_encode_query(self, mock_get_model):
         """Should encode a query string to an embedding."""
         mock_model = MagicMock()
@@ -245,7 +245,7 @@ class TestSearch:
         with pytest.raises(FileNotFoundError):
             service.search("buffer overflow")
 
-    @patch("cvec.services.embeddings.EmbeddingsService._get_model")
+    @patch("cvecli.services.embeddings.EmbeddingsService._get_model")
     def test_search_with_embeddings(self, mock_get_model, temp_config):
         """Should return similar CVEs when embeddings exist."""
         # Create mock model - fastembed's embed returns a generator
@@ -275,7 +275,7 @@ class TestSearch:
         scores = result["similarity_score"].to_list()
         assert scores[0] >= scores[1]
 
-    @patch("cvec.services.embeddings.EmbeddingsService._get_model")
+    @patch("cvecli.services.embeddings.EmbeddingsService._get_model")
     def test_search_with_min_similarity(self, mock_get_model, temp_config):
         """Should filter results below min_similarity."""
         # Create mock model - fastembed's embed returns a generator
@@ -366,7 +366,7 @@ class TestGetStats:
 class TestProgressCallback:
     """Tests for progress callback functionality."""
 
-    @patch("cvec.services.embeddings.EmbeddingsService._get_model")
+    @patch("cvecli.services.embeddings.EmbeddingsService._get_model")
     def test_progress_callback_called(self, mock_get_model):
         """Should call progress callback during embedding generation."""
         # Mock the model
@@ -419,7 +419,7 @@ def temp_config():
     """Create a Config pointing to temporary directories."""
     import tempfile
     from pathlib import Path
-    from cvec.core.config import Config
+    from cvecli.core.config import Config
 
     with tempfile.TemporaryDirectory() as tmpdir:
         temp_path = Path(tmpdir)

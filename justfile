@@ -1,4 +1,4 @@
-# Justfile for cvec project
+# Justfile for cvecli project
 # Run 'just --list' to see all available recipes
 
 # Default recipe (runs when you just type 'just')
@@ -19,7 +19,7 @@ test:
 
 # Run tests with coverage report
 test-cov:
-    uv run pytest tests/ -v --cov=src/cvec --cov-report=term-missing --cov-report=html
+    uv run pytest tests/ -v --cov=src/cvecli --cov-report=term-missing --cov-report=html
 
 # Format code with Black
 format:
@@ -31,7 +31,7 @@ format-check:
 
 # Run type checking with mypy
 typecheck:
-    uv run mypy src/cvec
+    uv run mypy src/cvecli
 
 # Run all checks (format check and type check)
 check: format-check typecheck
@@ -54,7 +54,7 @@ clean:
 
 # Run the CLI (example usage)
 run *ARGS:
-    uv run cvec {{ARGS}}
+    uv run cvecli {{ARGS}}
 
 # Full CI pipeline (format, check, test)
 ci: format-check typecheck test

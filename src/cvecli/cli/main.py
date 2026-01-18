@@ -4,19 +4,19 @@ This module provides a command-line interface for downloading, extracting,
 and searching CVE data from the cvelistV5 repository.
 
 Usage:
-    cvec db update                     Update CVE database from pre-built parquet files
-    cvec db update --prerelease        Update from latest pre-release
-    cvec db status                     Show database status
+    cvecli db update                     Update CVE database from pre-built parquet files
+    cvecli db update --prerelease        Update from latest pre-release
+    cvecli db status                     Show database status
 
-    cvec db build download-json        Download raw JSON files (advanced)
-    cvec db build extract-parquet      Extract JSON to parquet locally (advanced)
-    cvec db build extract-embeddings   Generate embeddings for semantic search
-    cvec db build create-manifest      Create manifest.json for distribution
+    cvecli db build download-json        Download raw JSON files (advanced)
+    cvecli db build extract-parquet      Extract JSON to parquet locally (advanced)
+    cvecli db build extract-embeddings   Generate embeddings for semantic search
+    cvecli db build create-manifest      Create manifest.json for distribution
 
-    cvec search <query>                Search CVEs (use --semantic for semantic search)
-    cvec get <cve-id>                  Get details for a specific CVE
-    cvec products <query>              Search product/vendor names in the database
-    cvec stats                         Show database statistics
+    cvecli search <query>                Search CVEs (use --semantic for semantic search)
+    cvecli get <cve-id>                  Get details for a specific CVE
+    cvecli products <query>              Search product/vendor names in the database
+    cvecli stats                         Show database statistics
 """
 
 import hashlib
@@ -31,29 +31,29 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from cvec import MANIFEST_SCHEMA_VERSION
-from cvec.core.config import Config
-from cvec.services.downloader import DownloadService
-from cvec.services.extractor import ExtractorService
-from cvec.services.embeddings import (
+from cvecli import MANIFEST_SCHEMA_VERSION
+from cvecli.core.config import Config
+from cvecli.services.downloader import DownloadService
+from cvecli.services.extractor import ExtractorService
+from cvecli.services.embeddings import (
     EmbeddingsService,
     SemanticDependencyError,
     is_semantic_available,
 )
-from cvec.services.artifact_fetcher import (
+from cvecli.services.artifact_fetcher import (
     ArtifactFetcher,
     ManifestIncompatibleError,
     ChecksumMismatchError,
     SUPPORTED_SCHEMA_VERSION,
 )
-from cvec.services.search import (
+from cvecli.services.search import (
     SEVERITY_THRESHOLDS,
     CVESearchService,
     SearchMode,
     SearchResult,
     SeverityLevel,
 )
-from cvec.cli.formatters import (
+from cvecli.cli.formatters import (
     OutputFormat,
     output_search_results,
     output_cve_detail,
@@ -93,7 +93,7 @@ def normalize_date(date_str: str) -> str:
 
 
 app = typer.Typer(
-    name="cvec",
+    name="cvecli",
     help="CVE analysis tool for LLM agents",
     no_args_is_help=True,
 )
@@ -149,19 +149,19 @@ def db_update(
     """Update CVE database from pre-built parquet files.
 
     This is the recommended way to get CVE data. It downloads pre-built
-    parquet files from the cvec-db repository, which is much faster than
+    parquet files from the cvecli-db repository, which is much faster than
     downloading and processing raw JSON files.
 
     By default, embeddings are not downloaded. Use --embeddings to download
     them for semantic search support.
 
     Example:
-        cvec db update
-        cvec db update --force
-        cvec db update --embeddings
-        cvec db update --tag v20260106
-        cvec db update --prerelease
-        cvec db update --data-dir /path/to/data
+        cvecli db update
+        cvecli db update --force
+        cvecli db update --embeddings
+        cvecli db update --tag v20260106
+        cvecli db update --prerelease
+        cvecli db update --data-dir /path/to/data
     """
     data_path = Path(data_dir) if data_dir else None
     config = Config(data_dir=data_path, download_dir=data_path)
@@ -188,13 +188,13 @@ def db_update(
             if result.get("skipped_semantic"):
                 console.print()
                 console.print(
-                    "[dim]Tip: Use 'cvec db update --embeddings' to download embeddings for semantic search.[/dim]"
+                    "[dim]Tip: Use 'cvecli db update --embeddings' to download embeddings for semantic search.[/dim]"
                 )
 
     except ManifestIncompatibleError as e:
         console.print(f"[red]Error: {e}[/red]")
         console.print(
-            "[yellow]Hint: Run 'pip install --upgrade cvec' to get the latest version.[/yellow]"
+            "[yellow]Hint: Run 'pip install --upgrade cvecli' to get the latest version.[/yellow]"
         )
         raise typer.Exit(1)
     except ChecksumMismatchError as e:
@@ -229,13 +229,13 @@ def db_download_json(
     Use this if you need the original JSON data or want to build
     parquet files locally.
 
-    For most users, 'cvec db update' is faster and easier.
+    For most users, 'cvecli db update' is faster and easier.
 
     Example:
-        cvec db build download-json
-        cvec db build download-json --years 5
-        cvec db build download-json --all
-        cvec db build download-json --data-dir /path/to/data
+        cvecli db build download-json
+        cvecli db build download-json --years 5
+        cvecli db build download-json --all
+        cvecli db build download-json --data-dir /path/to/data
     """
     data_path = Path(data_dir) if data_dir else None
     config = Config(data_dir=data_path, download_dir=data_path)
@@ -265,7 +265,7 @@ def db_download_json(
 
     console.print("\n[bold green]✓ Download complete![/bold green]")
     console.print(
-        "[dim]Hint: Run 'cvec db extract-parquet' to convert to parquet format.[/dim]"
+        "[dim]Hint: Run 'cvecli db extract-parquet' to convert to parquet format.[/dim]"
     )
 
 
@@ -285,14 +285,14 @@ def db_extract_parquet(
     """Extract CVE JSON files to parquet format.
 
     This converts the downloaded JSON files into optimized parquet files.
-    You must run 'cvec db build download-json' first.
+    You must run 'cvecli db build download-json' first.
 
-    For most users, 'cvec db update' is faster and easier.
+    For most users, 'cvecli db update' is faster and easier.
 
     Example:
-        cvec db build extract-parquet
-        cvec db build extract-parquet --years 5 --verbose
-        cvec db build extract-parquet --data-dir /path/to/data
+        cvecli db build extract-parquet
+        cvecli db build extract-parquet --years 5 --verbose
+        cvecli db build extract-parquet --data-dir /path/to/data
     """
     data_path = Path(data_dir) if data_dir else None
     config = Config(data_dir=data_path, download_dir=data_path)
@@ -302,7 +302,7 @@ def db_extract_parquet(
     # Check if JSON files exist
     if not config.cve_dir.exists():
         console.print("[red]Error: No CVE JSON files found.[/red]")
-        console.print("[yellow]Hint: Run 'cvec db build download-json' first.[/yellow]")
+        console.print("[yellow]Hint: Run 'cvecli db build download-json' first.[/yellow]")
         raise typer.Exit(1)
 
     service = ExtractorService(config)
@@ -350,23 +350,23 @@ def db_extract_embeddings(
     semantic (natural language) search across CVEs.
 
     Requires the 'semantic' optional dependency:
-        pip install 'cvec[semantic]'
+        pip install 'cvecli[semantic]'
 
-    You must have parquet data first - run 'cvec db update' or 'cvec db build extract-parquet'.
+    You must have parquet data first - run 'cvecli db update' or 'cvecli db build extract-parquet'.
 
     Example:
-        cvec db build extract-embeddings
-        cvec db build extract-embeddings --years 5 --batch-size 512 --verbose
-        cvec db build extract-embeddings --data-dir /path/to/data
+        cvecli db build extract-embeddings
+        cvecli db build extract-embeddings --years 5 --batch-size 512 --verbose
+        cvecli db build extract-embeddings --data-dir /path/to/data
     """
     # Check for semantic dependency
     if not is_semantic_available():
         console.print("[red]Error: Semantic search dependencies not installed.[/red]")
         console.print()
         console.print("Install with:")
-        console.print("  [cyan]pip install cvec\\[semantic][/cyan]")
+        console.print("  [cyan]pip install cvecli\\[semantic][/cyan]")
         console.print("  [dim]or with uv:[/dim]")
-        console.print("  [cyan]uv pip install cvec\\[semantic][/cyan]")
+        console.print("  [cyan]uv pip install cvecli\\[semantic][/cyan]")
         raise typer.Exit(1)
 
     data_path = Path(data_dir) if data_dir else None
@@ -378,7 +378,7 @@ def db_extract_embeddings(
     if not config.cves_parquet.exists():
         console.print("[red]Error: No CVE parquet data found.[/red]")
         console.print(
-            "[yellow]Hint: Run 'cvec db update' or 'cvec db build extract-parquet' first.[/yellow]"
+            "[yellow]Hint: Run 'cvecli db update' or 'cvecli db build extract-parquet' first.[/yellow]"
         )
         raise typer.Exit(1)
 
@@ -440,10 +440,10 @@ def db_create_manifest(
     This command is primarily used by CI/CD pipelines to create release artifacts.
 
     Example:
-        cvec db build create-manifest
-        cvec db build create-manifest --source github-actions --release-status official
-        cvec db build create-manifest --release-status prerelease
-        cvec db build create-manifest --data-dir /path/to/data --output manifest.json
+        cvecli db build create-manifest
+        cvecli db build create-manifest --source github-actions --release-status official
+        cvecli db build create-manifest --release-status prerelease
+        cvecli db build create-manifest --data-dir /path/to/data --output manifest.json
     """
     import polars as pl
 
@@ -454,7 +454,7 @@ def db_create_manifest(
     if not config.cves_parquet.exists():
         console.print("[red]Error: No CVE parquet data found.[/red]")
         console.print(
-            "[yellow]Hint: Run 'cvec db build extract-parquet' first.[/yellow]"
+            "[yellow]Hint: Run 'cvecli db build extract-parquet' first.[/yellow]"
         )
         raise typer.Exit(1)
 
@@ -559,11 +559,11 @@ def db_status(
     """Show database status and check for updates.
 
     Displays information about the local database and checks if
-    a newer version is available from the cvec-db repository.
+    a newer version is available from the cvecli-db repository.
 
     Example:
-        cvec db status
-        cvec db status --data-dir /path/to/data
+        cvecli db status
+        cvecli db status --data-dir /path/to/data
     """
     data_path = Path(data_dir) if data_dir else None
     config = Config(data_dir=data_path)
@@ -584,7 +584,7 @@ def db_status(
         console.print(f"  - Files: {len(local_manifest.get('files', []))}")
     else:
         console.print("[yellow]⚠ No local database found[/yellow]")
-        console.print("  Run 'cvec db update' to download the database.")
+        console.print("  Run 'cvecli db update' to download the database.")
 
     console.print()
 
@@ -601,11 +601,11 @@ def db_status(
                 "[yellow]⚠ Semantic search available but no embeddings[/yellow]"
             )
             console.print(
-                "  Run 'cvec db build extract-embeddings' to generate embeddings."
+                "  Run 'cvecli db build extract-embeddings' to generate embeddings."
             )
     else:
         console.print("[dim]⚠ Semantic search not installed[/dim]")
-        console.print("  Install with: pip install cvec\\[semantic]")
+        console.print("  Install with: pip install cvecli\\[semantic]")
 
     console.print()
 
@@ -625,7 +625,7 @@ def db_status(
 
             if status["needs_update"]:
                 console.print("\n[yellow]⚠ Update available![/yellow]")
-                console.print("  Run 'cvec db update' to download the latest version.")
+                console.print("  Run 'cvecli db update' to download the latest version.")
             else:
                 console.print("\n[green]✓ Local database is up-to-date[/green]")
         else:
@@ -773,21 +773,21 @@ def search(
     ecosystems (PyPI, npm, Maven, etc.).
 
     Examples:
-        cvec search "linux kernel"                    # Fuzzy search (default)
-        cvec search "linux" --mode strict             # Exact match only
-        cvec search "linux.*kernel" --mode regex     # Regex pattern
-        cvec search "memory corruption" -m            # Semantic search
-        cvec search "windows" -V microsoft            # Filter by vendor
-        cvec search "chrome" -p browser               # Filter by product
-        cvec search --cwe 787                         # Search by CWE ID
-        cvec search --purl "pkg:pypi/django"          # Search by PURL
-        cvec search --purl "pkg:npm/lodash"           # npm package
-        cvec search "apache" --cvss-min 7.0           # CVSS >= 7.0
-        cvec search "linux" --sort date               # Sort by date (descending by default)
-        cvec search "linux" --sort cvss --order ascending  # Sort by CVSS ascending
-        cvec search "apache" --ids-only               # Output CVE IDs only
-        cvec search --cpe "cpe:2.3:a:apache:http_server:*:*:*:*:*:*:*:*"
-        cvec search "apache" --version 2.4.51         # Filter by affected version
+        cvecli search "linux kernel"                    # Fuzzy search (default)
+        cvecli search "linux" --mode strict             # Exact match only
+        cvecli search "linux.*kernel" --mode regex     # Regex pattern
+        cvecli search "memory corruption" -m            # Semantic search
+        cvecli search "windows" -V microsoft            # Filter by vendor
+        cvecli search "chrome" -p browser               # Filter by product
+        cvecli search --cwe 787                         # Search by CWE ID
+        cvecli search --purl "pkg:pypi/django"          # Search by PURL
+        cvecli search --purl "pkg:npm/lodash"           # npm package
+        cvecli search "apache" --cvss-min 7.0           # CVSS >= 7.0
+        cvecli search "linux" --sort date               # Sort by date (descending by default)
+        cvecli search "linux" --sort cvss --order ascending  # Sort by CVSS ascending
+        cvecli search "apache" --ids-only               # Output CVE IDs only
+        cvecli search --cpe "cpe:2.3:a:apache:http_server:*:*:*:*:*:*:*:*"
+        cvecli search "apache" --version 2.4.51         # Filter by affected version
     """
     config = Config()
     service = CVESearchService(config)
@@ -860,10 +860,10 @@ def search(
                 )
                 console.print()
                 console.print("Download embeddings with:")
-                console.print("  [cyan]cvec db update --embeddings[/cyan]")
+                console.print("  [cyan]cvecli db update --embeddings[/cyan]")
                 console.print()
                 console.print("Or generate them locally with:")
-                console.print("  [cyan]cvec db build extract-embeddings[/cyan]")
+                console.print("  [cyan]cvecli db build extract-embeddings[/cyan]")
                 raise typer.Exit(1)
 
             # Check if semantic dependencies are installed
@@ -873,9 +873,9 @@ def search(
                 )
                 console.print()
                 console.print("Install with:")
-                console.print("  [cyan]pip install cvec\\[semantic][/cyan]")
+                console.print("  [cyan]pip install cvecli\\[semantic][/cyan]")
                 console.print("  [dim]or with uv:[/dim]")
-                console.print("  [cyan]uv pip install cvec\\[semantic][/cyan]")
+                console.print("  [cyan]uv pip install cvecli\\[semantic][/cyan]")
                 raise typer.Exit(1)
 
             try:
@@ -1032,10 +1032,10 @@ def get(
     """Get details for one or more CVEs.
 
     Examples:
-        cvec get CVE-2024-1234
-        cvec get CVE-2024-1234 CVE-2024-5678
-        cvec get CVE-2024-1234 --detailed
-        cvec get CVE-2024-1234 --format json --output cve.json
+        cvecli get CVE-2024-1234
+        cvecli get CVE-2024-1234 CVE-2024-5678
+        cvecli get CVE-2024-1234 --detailed
+        cvecli get CVE-2024-1234 --format json --output cve.json
     """
     config = Config()
     service = CVESearchService(config)
@@ -1120,7 +1120,7 @@ def stats(
     try:
         statistics = service.stats()
     except FileNotFoundError:
-        console.print("[red]No data found. Run 'cvec db update' first.[/red]")
+        console.print("[red]No data found. Run 'cvecli db update' first.[/red]")
         raise typer.Exit(1)
 
     # Generate output content
@@ -1224,10 +1224,10 @@ def products(
     The results show how many CVEs affect each product/vendor combination.
 
     Examples:
-        cvec products "linux"                # Find all products with "linux"
-        cvec products "chrome" -V google     # Chrome products by Google
-        cvec products "windows" --mode strict # Exact match for "windows"
-        cvec products "apache.*http" -M regex # Regex pattern
+        cvecli products "linux"                # Find all products with "linux"
+        cvecli products "chrome" -V google     # Chrome products by Google
+        cvecli products "windows" --mode strict # Exact match for "windows"
+        cvecli products "apache.*http" -M regex # Regex pattern
     """
     config = Config()
     service = CVESearchService(config)

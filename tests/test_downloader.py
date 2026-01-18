@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cvec.core.config import Config
-from cvec.services.downloader import (
+from cvecli.core.config import Config
+from cvecli.services.downloader import (
     DownloadService,
     CAPEC_URL,
     CWE_URL,
@@ -48,7 +48,7 @@ class TestDownloadServiceInit:
 
     def test_default_config(self):
         """Test that default config is used when not provided."""
-        with patch("cvec.services.downloader.get_config") as mock_get_config:
+        with patch("cvecli.services.downloader.get_config") as mock_get_config:
             mock_config = MagicMock()
             mock_config.data_dir = Path(tempfile.gettempdir())
             mock_get_config.return_value = mock_config

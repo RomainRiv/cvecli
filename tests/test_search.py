@@ -2,7 +2,7 @@
 
 import pytest
 
-from cvec.services.search import (
+from cvecli.services.search import (
     SEVERITY_THRESHOLDS,
     CVESearchService,
     SearchResult,
@@ -424,11 +424,11 @@ class TestSemanticSearch:
         """semantic_search should return CVEs with similarity scores."""
         from unittest.mock import patch, MagicMock
         import numpy as np
-        from cvec.services.embeddings import EMBEDDING_DIMENSION
+        from cvecli.services.embeddings import EMBEDDING_DIMENSION
 
         # Mock the embedding model to return a specific query embedding
         with patch(
-            "cvec.services.embeddings.EmbeddingsService._get_model"
+            "cvecli.services.embeddings.EmbeddingsService._get_model"
         ) as mock_get_model:
             mock_model = MagicMock()
             # fastembed's embed returns a generator
@@ -578,7 +578,7 @@ class TestVersionRangeParsing:
 
     def test_version_range_string_parsing(self):
         """Version range strings like '0.5.6 - 1.13.2' should be parsed correctly."""
-        from cvec.services.version import is_version_affected
+        from cvecli.services.version import is_version_affected
 
         # Simulate what happens when filter_by_version processes a range string
         version_start = "0.5.6 - 1.13.2"
@@ -666,7 +666,7 @@ class TestCVSSScoreFiltering:
         cves_df = service._ensure_cves_loaded()
 
         # Create result with no metrics
-        from cvec.services.search import SearchResult
+        from cvecli.services.search import SearchResult
 
         result_no_metrics = SearchResult(cves_df.head(1))
 
@@ -750,7 +750,7 @@ class TestCWEFiltering:
         cves_df = service._ensure_cves_loaded()
 
         # Create result with no CWEs
-        from cvec.services.search import SearchResult
+        from cvecli.services.search import SearchResult
 
         result_no_cwes = SearchResult(cves_df.head(1))
 
@@ -845,7 +845,7 @@ class TestSortResults:
         service = CVESearchService(config=sample_parquet_data)
 
         # Create empty result
-        from cvec.services.search import SearchResult
+        from cvecli.services.search import SearchResult
 
         empty_result = SearchResult(pl.DataFrame())
 
@@ -861,7 +861,7 @@ class TestSortResults:
         cves_df = service._ensure_cves_loaded()
 
         # Create result with no metrics
-        from cvec.services.search import SearchResult
+        from cvecli.services.search import SearchResult
 
         result_no_metrics = SearchResult(cves_df.head(2))
 

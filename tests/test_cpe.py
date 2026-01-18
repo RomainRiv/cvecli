@@ -2,7 +2,7 @@
 
 import pytest
 
-from cvec.services.cpe import (
+from cvecli.services.cpe import (
     CPEComponents,
     CPEPart,
     parse_cpe,

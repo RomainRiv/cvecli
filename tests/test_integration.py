@@ -3,13 +3,13 @@
 import polars as pl
 import pytest
 
-from cvec.core.config import Config
-from cvec.models.cve_model import CveJsonRecordFormat
-from cvec.services.extractor import (
+from cvecli.core.config import Config
+from cvecli.models.cve_model import CveJsonRecordFormat
+from cvecli.services.extractor import (
     ExtractorService,
     _extract_single_cve,
 )
-from cvec.services.search import CVESearchService
+from cvecli.services.search import CVESearchService
 
 
 class TestExtractionToSearchPipeline:
@@ -207,7 +207,7 @@ class TestSearchWithRealData:
         """Get config pointing to real data directory."""
         config = Config()
         if not config.cves_parquet.exists():
-            pytest.skip("Real CVE data not available - run 'cvec db update' first")
+            pytest.skip("Real CVE data not available - run 'cvecli db update' first")
         # Check if the parquet has the new schema by looking for cve_id column
         import polars as pl
 
@@ -216,7 +216,7 @@ class TestSearchWithRealData:
             if "cve_id" not in df.columns:
                 pytest.skip(
                     "Real CVE data is in old schema format - "
-                    "run 'cvec db build extract-parquet' to regenerate"
+                    "run 'cvecli db build extract-parquet' to regenerate"
                 )
         except Exception:
             pytest.skip("Error reading parquet file")

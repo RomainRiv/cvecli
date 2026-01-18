@@ -14,7 +14,7 @@ found in CVE data, including:
 
 import pytest
 
-from cvec.services.version import (
+from cvecli.services.version import (
     VersionInfo,
     parse_version,
     compare_versions,

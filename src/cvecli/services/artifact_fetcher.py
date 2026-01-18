@@ -1,4 +1,4 @@
-"""Service for fetching pre-built parquet files from cvec-db GitHub releases."""
+"""Service for fetching pre-built parquet files from cvecli-db GitHub releases."""
 
 import hashlib
 import json
@@ -18,14 +18,14 @@ from rich.progress import (
     TransferSpeedColumn,
 )
 
-from cvec import MANIFEST_SCHEMA_VERSION
-from cvec.core.config import Config, get_config
+from cvecli import MANIFEST_SCHEMA_VERSION
+from cvecli.core.config import Config, get_config
 
-# Manifest schema version this cvec version supports
+# Manifest schema version this cvecli version supports
 SUPPORTED_SCHEMA_VERSION = MANIFEST_SCHEMA_VERSION
 
-# Default cvec-db repository
-DEFAULT_CVEC_DB_REPO = "RomainRiv/cvec-db"  # Update with actual repo
+# Default cvecli-db repository
+DEFAULT_CVECLI_DB_REPO = "RomainRiv/cvecli-db"  # Update with actual repo
 
 # Files that require semantic search capability (optional)
 SEMANTIC_FILES = {"cve_embeddings.parquet"}
@@ -40,7 +40,7 @@ class ManifestIncompatibleError(Exception):
         super().__init__(
             f"Incompatible parquet schema: remote version {remote_version}, "
             f"supported version {supported_version}. "
-            f"Please update cvec to the latest version."
+            f"Please update cvecli to the latest version."
         )
 
 
@@ -68,11 +68,11 @@ class ArtifactFetcher:
         """
         self.config = config or get_config()
         self.quiet = quiet
-        self.repo = repo or os.environ.get("CVEC_DB_REPO", DEFAULT_CVEC_DB_REPO)
+        self.repo = repo or os.environ.get("CVECLI_DB_REPO", DEFAULT_CVECLI_DB_REPO)
         self.config.ensure_directories()
 
     def _get_latest_release(self, include_prerelease: bool = False) -> dict[str, Any]:
-        """Get the latest release from the cvec-db repository.
+        """Get the latest release from the cvecli-db repository.
 
         Args:
             include_prerelease: If True, include pre-releases in search.
@@ -206,7 +206,7 @@ class ArtifactFetcher:
         return result
 
     def check_compatibility(self, manifest: dict) -> bool:
-        """Check if the manifest is compatible with this version of cvec.
+        """Check if the manifest is compatible with this version of cvecli.
 
         Args:
             manifest: Parsed manifest dictionary.
@@ -374,7 +374,7 @@ class ArtifactFetcher:
             if skipped_semantic:
                 print(
                     f"Skipped {len(skipped_semantic)} embedding file(s). "
-                    "Use 'cvec db update --embeddings' to download or 'cvec db build extract-embeddings' to generate locally."
+                    "Use 'cvecli db update --embeddings' to download or 'cvecli db build extract-embeddings' to generate locally."
                 )
 
         return {

@@ -34,8 +34,8 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from cvec.core.config import Config, get_config
-from cvec.models.cve_model import (
+from cvecli.core.config import Config, get_config
+from cvecli.models.cve_model import (
     CnaPublishedContainer,
     Containers,
     CveJsonRecordFormat,
@@ -1591,7 +1591,7 @@ class ExtractorService:
 
         # Generate embeddings if requested
         if self.generate_embeddings and descriptions:
-            from cvec.services.embeddings import EmbeddingsService
+            from cvecli.services.embeddings import EmbeddingsService
 
             if not self.quiet:
                 print("Generating embeddings for semantic search...")
