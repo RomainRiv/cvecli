@@ -109,7 +109,9 @@ class TestArtifactFetcherInit:
     def test_default_config(self):
         """Test that default config is used when not provided."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("cvecli.services.artifact_fetcher.get_config") as mock_get_config:
+            with patch(
+                "cvecli.services.artifact_fetcher.get_config"
+            ) as mock_get_config:
                 mock_config = MagicMock()
                 mock_config.data_dir = Path(tmpdir)
                 mock_get_config.return_value = mock_config

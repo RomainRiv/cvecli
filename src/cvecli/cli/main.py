@@ -302,7 +302,9 @@ def db_extract_parquet(
     # Check if JSON files exist
     if not config.cve_dir.exists():
         console.print("[red]Error: No CVE JSON files found.[/red]")
-        console.print("[yellow]Hint: Run 'cvecli db build download-json' first.[/yellow]")
+        console.print(
+            "[yellow]Hint: Run 'cvecli db build download-json' first.[/yellow]"
+        )
         raise typer.Exit(1)
 
     service = ExtractorService(config)
@@ -625,7 +627,9 @@ def db_status(
 
             if status["needs_update"]:
                 console.print("\n[yellow]⚠ Update available![/yellow]")
-                console.print("  Run 'cvecli db update' to download the latest version.")
+                console.print(
+                    "  Run 'cvecli db update' to download the latest version."
+                )
             else:
                 console.print("\n[green]✓ Local database is up-to-date[/green]")
         else:
