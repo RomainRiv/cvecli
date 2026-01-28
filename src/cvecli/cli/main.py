@@ -490,7 +490,7 @@ def db_create_manifest(
     # Copy license files to data directory
     for source_name, target_name in license_files_info:
         source_path = None
-        
+
         # Try 1: Development - relative to project root
         project_root = Path(__file__).parent.parent.parent.parent
         dev_path = project_root / "licences" / source_name
@@ -499,7 +499,10 @@ def db_create_manifest(
         else:
             # Try 2: Installed package - try to find in sys.prefix/share
             import sys
-            share_path = Path(sys.prefix) / "share" / "cvecli" / "licences" / source_name
+
+            share_path = (
+                Path(sys.prefix) / "share" / "cvecli" / "licences" / source_name
+            )
             if share_path.exists():
                 source_path = share_path
             else:
@@ -507,7 +510,7 @@ def db_create_manifest(
                 local_path = Path("licences") / source_name
                 if local_path.exists():
                     source_path = local_path
-        
+
         if source_path and source_path.exists():
             target_path = config.data_dir / target_name
             target_path.write_text(source_path.read_text())
