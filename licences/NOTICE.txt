@@ -1,0 +1,29 @@
+NOTICE
+
+This distribution includes data derived from Common Vulnerabilities and Exposures (CVE®) Records.
+
+Source of CVE Records:
+  - CVEProject/cvelistV5 (CVE Record Format JSON)
+
+CVE content is made available under the CVE Program Terms of Use.
+A copy of the CVE Terms of Use is provided with this distribution in:
+  - CVE_TERMS_OF_USE.txt
+
+Trademarks:
+  - CVE is a trademark and the CVE logo is a registered trademark of The MITRE Corporation.
+
+About this distribution:
+  - The files in this release are a transformed/normalized representation of CVE Records (e.g., Parquet,
+    indexing, and other convenience structures) to support efficient local querying.
+  - Any additional derived fields (such as embeddings, indexes, or computed metadata) are produced by
+    this project and are not part of the official CVE Records.
+
+No endorsement:
+  - This project is not affiliated with, endorsed by, or sponsored by The MITRE Corporation or the CVE Program.
+
+Warranty disclaimer:
+  - This distribution is provided “AS IS”, without warranties or conditions of any kind. See
+    CVE_TERMS_OF_USE.txt for the full terms and disclaimers.
+
+Project licensing:
+  - The code used to build this distribution is licensed separately under the MIT License (see LICENSE).

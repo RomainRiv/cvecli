@@ -281,4 +281,8 @@ cvecli db update                    # Downloads database + embeddings
 
 ## License
 
-MIT
+**Project Code**: This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+**CVE Data**: CVE data is made available under the [CVE Program Terms of Use](licences/CVE_TERMS_OF_USE.md). When you download the CVE database using `cvecli db update`, the license terms and notices are included with the data files.
+
+**Redistribution**: If you redistribute the CVE database files, you must include the `CVE_TERMS_OF_USE.md` and `NOTICE.txt` files that come with the database. These files are automatically included when building a release with `cvecli db build create-manifest`.

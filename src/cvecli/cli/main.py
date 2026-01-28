@@ -480,8 +480,28 @@ def db_create_manifest(
     if embeddings_path.exists():
         parquet_files.append("cve_embeddings.parquet")
 
+    # License and notice files to include from project root
+    # These are located in licences/ directory relative to project root
+    project_root = Path(__file__).parent.parent.parent.parent
+    license_files = [
+        (project_root / "licences" / "CVE_TERMS_OF_USE.md", "CVE_TERMS_OF_USE.md"),
+        (project_root / "licences" / "NOTICE.txt", "NOTICE.txt"),
+    ]
+
+    # Copy license files to data directory
+    for source_path, target_name in license_files:
+        if source_path.exists():
+            target_path = config.data_dir / target_name
+            target_path.write_text(source_path.read_text())
+            console.print(f"[blue]Copied {target_name} to data directory[/blue]")
+        else:
+            console.print(
+                f"[yellow]Warning: {source_path} not found, skipping[/yellow]"
+            )
+
     # Build files list with checksums
     files_info = []
+    # Include parquet files
     for filename in parquet_files:
         file_path = config.data_dir / filename
         if file_path.exists():
@@ -500,6 +520,28 @@ def db_create_manifest(
             )
         else:
             console.print(f"[yellow]Warning: {filename} not found, skipping[/yellow]")
+
+    # Include license files
+    for _, target_name in license_files:
+        file_path = config.data_dir / target_name
+        if file_path.exists():
+            # Calculate SHA256
+            sha256 = hashlib.sha256()
+            with open(file_path, "rb") as f:
+                for chunk in iter(lambda: f.read(8192), b""):
+                    sha256.update(chunk)
+
+            files_info.append(
+                {
+                    "name": target_name,
+                    "sha256": sha256.hexdigest(),
+                    "size": file_path.stat().st_size,
+                }
+            )
+        else:
+            console.print(
+                f"[yellow]Warning: {target_name} not found in data directory[/yellow]"
+            )
 
     # Gather stats from CVEs parquet
     stats = {}
