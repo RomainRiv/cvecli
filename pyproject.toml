@@ -45,6 +45,10 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/cvecli"]
 
+[tool.hatch.build.targets.wheel.shared-data]
+"licences/CVE_TERMS_OF_USE.md" = "share/cvecli/licences/CVE_TERMS_OF_USE.md"
+"licences/NOTICE.txt" = "share/cvecli/licences/NOTICE.txt"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

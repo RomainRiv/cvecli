@@ -480,23 +480,44 @@ def db_create_manifest(
     if embeddings_path.exists():
         parquet_files.append("cve_embeddings.parquet")
 
-    # License and notice files to include from project root
-    # These are located in licences/ directory relative to project root
-    project_root = Path(__file__).parent.parent.parent.parent
-    license_files = [
-        (project_root / "licences" / "CVE_TERMS_OF_USE.md", "CVE_TERMS_OF_USE.md"),
-        (project_root / "licences" / "NOTICE.txt", "NOTICE.txt"),
+    # License and notice files to include from project
+    # Try multiple locations: development source tree, installed package, and shared data
+    license_files_info = [
+        ("CVE_TERMS_OF_USE.md", "CVE_TERMS_OF_USE.md"),
+        ("NOTICE.txt", "NOTICE.txt"),
     ]
 
     # Copy license files to data directory
-    for source_path, target_name in license_files:
-        if source_path.exists():
+    for source_name, target_name in license_files_info:
+        source_path = None
+        
+        # Try 1: Development - relative to project root
+        project_root = Path(__file__).parent.parent.parent.parent
+        dev_path = project_root / "licences" / source_name
+        if dev_path.exists():
+            source_path = dev_path
+        else:
+            # Try 2: Installed package - try to find in sys.prefix/share
+            import sys
+            share_path = Path(sys.prefix) / "share" / "cvecli" / "licences" / source_name
+            if share_path.exists():
+                source_path = share_path
+            else:
+                # Try 3: Check current directory (for unusual installations)
+                local_path = Path("licences") / source_name
+                if local_path.exists():
+                    source_path = local_path
+        
+        if source_path and source_path.exists():
             target_path = config.data_dir / target_name
             target_path.write_text(source_path.read_text())
             console.print(f"[blue]Copied {target_name} to data directory[/blue]")
         else:
             console.print(
-                f"[yellow]Warning: {source_path} not found, skipping[/yellow]"
+                f"[yellow]Warning: {source_name} not found in any location, skipping[/yellow]"
+            )
+            console.print(
+                f"[dim]  Tried: {dev_path}, {share_path if 'share_path' in locals() else 'N/A'}[/dim]"
             )
 
     # Build files list with checksums
@@ -522,7 +543,7 @@ def db_create_manifest(
             console.print(f"[yellow]Warning: {filename} not found, skipping[/yellow]")
 
     # Include license files
-    for _, target_name in license_files:
+    for _, target_name in license_files_info:
         file_path = config.data_dir / target_name
         if file_path.exists():
             # Calculate SHA256
