@@ -14,7 +14,7 @@ Note: This module requires the optional 'semantic' dependencies:
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Generator, List, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
 
 import polars as pl
 from rich.progress import (
@@ -301,7 +301,6 @@ class EmbeddingsService:
 
         # Filter by year if specified
         if years is not None:
-            from datetime import datetime
 
             start_year, end_year = self.config.get_year_range(years)
             # Filter CVEs based on their ID (CVE-YYYY-*)

@@ -4,7 +4,6 @@ import json
 import tempfile
 from pathlib import Path
 
-import pytest
 from typer.testing import CliRunner
 
 from cvecli.cli.main import app

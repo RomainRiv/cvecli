@@ -3,7 +3,6 @@
 import hashlib
 import json
 import os
-import sys
 from pathlib import Path
 from typing import Any, Optional
 
@@ -12,7 +11,6 @@ from rich.progress import (
     BarColumn,
     DownloadColumn,
     Progress,
-    TaskProgressColumn,
     TextColumn,
     TimeRemainingColumn,
     TransferSpeedColumn,

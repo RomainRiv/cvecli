@@ -1,10 +1,7 @@
 """Unit tests for CPE parsing utilities."""
 
-import pytest
 
 from cvecli.services.cpe import (
-    CPEComponents,
-    CPEPart,
     parse_cpe,
     is_valid_cpe,
     match_cpe_to_product,

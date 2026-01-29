@@ -660,7 +660,6 @@ class TestCVSSScoreFiltering:
 
     def test_filter_by_cvss_no_metrics(self, sample_parquet_data):
         """Filter should handle results with no metrics gracefully."""
-        import polars as pl
 
         service = CVESearchService(config=sample_parquet_data)
         cves_df = service._ensure_cves_loaded()
@@ -744,7 +743,6 @@ class TestCWEFiltering:
 
     def test_filter_by_cwe_no_cwes(self, sample_parquet_data):
         """Filter should handle results with no CWEs gracefully."""
-        import polars as pl
 
         service = CVESearchService(config=sample_parquet_data)
         cves_df = service._ensure_cves_loaded()
@@ -855,7 +853,6 @@ class TestSortResults:
 
     def test_sort_no_metrics(self, sample_parquet_data):
         """Sort by CVSS with no metrics should return original result."""
-        import polars as pl
 
         service = CVESearchService(config=sample_parquet_data)
         cves_df = service._ensure_cves_loaded()
