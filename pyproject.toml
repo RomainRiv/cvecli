@@ -21,6 +21,12 @@ semantic = [
     "numpy>=2.0.0",
 ]
 
+notebook = [
+    "plotly>=6.0.0",
+    "jupyter>=1.0.0",
+    "ipykernel>=6.29.0",
+]
+
 dev = [
     "pytest>=8.0.0",
     "pytest-cov>=4.1.0",
@@ -41,6 +47,12 @@ package = true
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.14",
+    "ty>=0.0.14",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cvecli"]
@@ -77,3 +89,7 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
 ignore_missing_imports = true
+
+[tool.ty.src]
+include = ["src", "tests"]
+exclude = ["src/cvecli/models/cve_model.py"]
