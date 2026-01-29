@@ -327,7 +327,7 @@ class TestExactMatching:
         # [v1.0] would be interpreted as character class
         # This may either throw an error or return wrong results
         try:
-            result = service.by_product("[v1.0]", fuzzy=True, exact=False)
+            service.by_product("[v1.0]", fuzzy=True, exact=False)
             # If it doesn't throw, it might match other products containing v, 1, 0, or .
             # The exact behavior depends on polars regex handling
         except Exception:

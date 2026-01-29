@@ -216,10 +216,9 @@ class TestEmbeddedLettersQualifiers:
     def test_java_7_update_versions(self):
         """7u85 < 7u121"""
         # This is a tricky format - may need special handling
-        result = compare_versions("7u85", "7u121")
         # Expect -1 if properly parsed, but may fail with current impl
         # We'll test and document the behavior
-        pass  # Skip for now, will add proper test after fix
+        compare_versions("7u85", "7u121")
 
     def test_office_build_numbers(self):
         """Office-style build numbers."""

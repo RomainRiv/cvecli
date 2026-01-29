@@ -201,9 +201,7 @@ class DownloadService:
 
             extracted_count = 0
 
-            if self.quiet:
-                iterator = json_members
-            else:
+            if not self.quiet:
                 progress = Progress(
                     TextColumn("{task.description}"),
                     BarColumn(),
