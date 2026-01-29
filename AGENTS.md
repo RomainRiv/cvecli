@@ -10,7 +10,7 @@ This document provides essential information for AI agents working in the cvecli
 - **Package Manager**: uv (modern, fast Python package manager)
 - **Task Runner**: just (command runner with Justfile)
 - **Testing**: pytest with coverage
-- **Code Quality**: Black (formatting), mypy (type checking)
+- **Code Quality**: Black (formatting), mypy (type checking), ruff (linting), ty (type checking)
 - **Data Format**: Polars DataFrames stored as Parquet files
 
 ## Project Structure
@@ -84,13 +84,16 @@ just test-cov             # Run tests with coverage report (generates htmlcov/)
 just format               # Format code with Black
 just format-check         # Check formatting without changes
 just typecheck            # Run mypy type checking
-just check                # Run format-check + typecheck
+just ty                   # Run ty type checking
+just lint                 # Run ruff linting
+just lint-fix             # Run ruff linting with auto-fix
+just check                # Run format-check + typecheck + ty + lint
 
 # Running the CLI
 just run <args>           # Example: just run search "linux"
 
 # CI Pipeline
-just ci                   # Run format-check, typecheck, and test
+just ci                   # Run format-check, typecheck, ty, lint, and test
 just release              # Full pipeline: format, check, test, build
 
 # Cleanup
@@ -184,6 +187,26 @@ just typecheck
 - Python version: 3.10
 - `disallow_untyped_defs`: false (not strictly enforced)
 - `ignore_missing_imports`: true
+
+### Type Checking with ty
+
+```bash
+just ty
+```
+
+ty is a modern, fast type checker for Python. It provides an additional layer of type checking to catch issues mypy may miss.
+
+### Linting with ruff
+
+```bash
+# Check for issues
+just lint
+
+# Check and auto-fix issues
+just lint-fix
+```
+
+ruff is an extremely fast Python linter that replaces tools like flake8, isort, and others. It catches code quality issues such as unused imports, undefined names, and style violations.
 
 ## Dependencies
 
@@ -314,6 +337,8 @@ just ci
 # Step by step
 just format-check
 just typecheck
+just ty
+just lint
 just test
 ```
 
@@ -352,9 +377,17 @@ just test
 # 4. Check types (optional, has errors)
 just typecheck
 
-# 5. Run full CI pipeline
+# 5. Run ty type checking
+just ty
+
+# 6. Run ruff linting
+just lint
+
+# 7. Run full CI pipeline
 just ci
 ```
+
+**IMPORTANT**: When making code changes, ALWAYS run `just lint` (ruff) and `just ty` to check for linting issues and type errors. Fix any issues before committing. These checks are part of the CI pipeline and must pass.
 
 ### Adding Dependencies
 

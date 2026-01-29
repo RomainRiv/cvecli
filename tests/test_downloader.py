@@ -129,7 +129,7 @@ class TestDownloadCapec:
         """Test downloading CAPEC with custom URL."""
         custom_url = "https://custom.example.com/capec.xml"
         with patch.object(download_service, "_download_with_progress") as mock_download:
-            result = download_service.download_capec(url=custom_url)
+            download_service.download_capec(url=custom_url)
 
             args = mock_download.call_args
             assert args[0][0] == custom_url
@@ -206,7 +206,7 @@ class TestDownloadCves:
         """Test downloading CVEs with custom URL."""
         custom_url = "https://custom.example.com/cves.zip"
         with patch.object(download_service, "_download_with_progress") as mock_download:
-            result = download_service.download_cves(url=custom_url)
+            download_service.download_cves(url=custom_url)
 
             args = mock_download.call_args
             assert args[0][0] == custom_url

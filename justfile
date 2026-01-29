@@ -33,8 +33,20 @@ format-check:
 typecheck:
     uv run mypy src/cvecli
 
-# Run all checks (format check and type check)
-check: format-check typecheck
+# Run type checking with ty
+ty:
+    uv run ty check src/cvecli
+
+# Lint code with ruff
+lint:
+    uv run ruff check src/ tests/
+
+# Lint and fix code with ruff
+lint-fix:
+    uv run ruff check --fix src/ tests/
+
+# Run all checks (format check, type check, and lint)
+check: format-check typecheck ty lint
 
 # Build the package
 build:
@@ -57,7 +69,7 @@ run *ARGS:
     uv run cvecli {{ARGS}}
 
 # Full CI pipeline (format, check, test)
-ci: format-check typecheck test
+ci: format-check typecheck ty lint test
 
 # Prepare for release (format, check, test, build)
 release: format check test build

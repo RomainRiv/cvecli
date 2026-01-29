@@ -196,7 +196,7 @@ class TestGetLatestRelease:
             mock_response.json.return_value = mock_release
             mock_get.return_value = mock_response
 
-            result = fetcher._get_latest_release(include_prerelease=False)
+            fetcher._get_latest_release(include_prerelease=False)
 
             # Should use /releases/latest endpoint
             assert "/releases/latest" in mock_get.call_args[0][0]
