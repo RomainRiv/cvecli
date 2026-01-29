@@ -23,6 +23,9 @@ CAPEC_URL = "https://capec.mitre.org/data/xml/capec_latest.xml"
 CWE_URL = "https://cwe.mitre.org/data/xml/cwec_latest.xml.zip"
 CVE_GITHUB_URL = "https://github.com/CVEProject/cvelistV5/archive/refs/heads/main.zip"
 
+# Default timeout for HTTP requests (connect timeout, read timeout) in seconds
+DEFAULT_TIMEOUT = (30, 300)  # 30s connect, 5min read for large files
+
 
 class DownloadService:
     """Service for downloading CVE-related data from various sources."""
@@ -48,7 +51,7 @@ class DownloadService:
             dest_path: Destination file path.
             desc: Description for progress bar.
         """
-        response = requests.get(url, stream=True)
+        response = requests.get(url, stream=True, timeout=DEFAULT_TIMEOUT)
         response.raise_for_status()
         total = int(response.headers.get("content-length", 0))
 

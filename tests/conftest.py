@@ -3,7 +3,7 @@
 import json
 import tempfile
 from pathlib import Path
-from typing import Generator
+from typing import Any, Dict, Generator
 
 import polars as pl
 import pytest
@@ -14,7 +14,7 @@ from cvecli.core.config import Config
 # Sample CVE Data - Real-world examples
 # =============================================================================
 
-SAMPLE_CVE_2022_2196 = {
+SAMPLE_CVE_2022_2196: Dict[str, Any] = {
     "dataType": "CVE_RECORD",
     "dataVersion": "5.1",
     "cveMetadata": {
@@ -92,7 +92,7 @@ SAMPLE_CVE_2022_2196 = {
 }
 
 # CVE with text severity (no CVSS)
-SAMPLE_CVE_TEXT_SEVERITY = {
+SAMPLE_CVE_TEXT_SEVERITY: Dict[str, Any] = {
     "dataType": "CVE_RECORD",
     "dataVersion": "5.1",
     "cveMetadata": {
@@ -138,7 +138,7 @@ SAMPLE_CVE_TEXT_SEVERITY = {
 }
 
 # CVE with no severity at all
-SAMPLE_CVE_NO_SEVERITY = {
+SAMPLE_CVE_NO_SEVERITY: Dict[str, Any] = {
     "dataType": "CVE_RECORD",
     "dataVersion": "5.1",
     "cveMetadata": {
@@ -164,7 +164,7 @@ SAMPLE_CVE_NO_SEVERITY = {
 }
 
 # CVE with ADP metrics
-SAMPLE_CVE_WITH_ADP = {
+SAMPLE_CVE_WITH_ADP: Dict[str, Any] = {
     "dataType": "CVE_RECORD",
     "dataVersion": "5.1",
     "cveMetadata": {
@@ -214,7 +214,7 @@ SAMPLE_CVE_WITH_ADP = {
 }
 
 # CVE with Package URL (PURL)
-SAMPLE_CVE_WITH_PURL = {
+SAMPLE_CVE_WITH_PURL: Dict[str, Any] = {
     "dataType": "CVE_RECORD",
     "dataVersion": "5.2",
     "cveMetadata": {

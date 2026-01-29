@@ -12,7 +12,6 @@ found in CVE data, including:
 - Parsing robustness
 """
 
-
 from cvecli.services.version import (
     parse_version,
     compare_versions,
