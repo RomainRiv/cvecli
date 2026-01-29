@@ -166,3 +166,12 @@ def get_config() -> Config:
     if _default_config is None:
         _default_config = Config()
     return _default_config
+
+
+def reset_config() -> None:
+    """Reset the global configuration instance.
+
+    This is primarily useful for testing to ensure a clean state.
+    """
+    global _default_config
+    _default_config = None

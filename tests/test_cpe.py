@@ -1,6 +1,5 @@
 """Unit tests for CPE parsing utilities."""
 
-
 from cvecli.services.cpe import (
     parse_cpe,
     is_valid_cpe,
@@ -45,6 +44,7 @@ class TestParseCPE23:
         """Parse CPE 2.3 with escaped special characters."""
         cpe = parse_cpe("cpe:2.3:a:vendor\\:name:product:1.0:*:*:*:*:*:*:*")
         assert cpe is not None
+        assert cpe.vendor is not None
         # The escaped colon should be preserved in vendor
         assert "vendor" in cpe.vendor
 
@@ -108,6 +108,7 @@ class TestParseCPE22:
         """Parse CPE 2.2 with URL-encoded characters."""
         cpe = parse_cpe("cpe:/a:vendor%3aname:product:1.0")
         assert cpe is not None
+        assert cpe.vendor is not None
         # URL-encoded colon should be decoded
         assert ":" in cpe.vendor or cpe.vendor == "vendor:name"
 
@@ -161,6 +162,7 @@ class TestCPEComponentsSearchTerms:
     def test_to_search_terms_underscores(self):
         """Underscores should be converted to spaces."""
         cpe = parse_cpe("cpe:2.3:a:apache:http_server:2.4.51:*:*:*:*:*:*:*")
+        assert cpe is not None
         vendor, product = cpe.to_search_terms()
         assert vendor == "apache"
         assert product == "http server"
@@ -168,6 +170,7 @@ class TestCPEComponentsSearchTerms:
     def test_to_search_terms_wildcards_ignored(self):
         """Wildcard values should return None."""
         cpe = parse_cpe("cpe:2.3:a:*:*:*:*:*:*:*:*:*:*")
+        assert cpe is not None
         vendor, product = cpe.to_search_terms()
         assert vendor is None
         assert product is None
@@ -175,6 +178,7 @@ class TestCPEComponentsSearchTerms:
     def test_to_search_terms_linux_kernel(self):
         """Test Linux kernel CPE."""
         cpe = parse_cpe("cpe:2.3:o:linux:linux_kernel:5.10:*:*:*:*:*:*:*")
+        assert cpe is not None
         vendor, product = cpe.to_search_terms()
         assert vendor == "linux"
         assert product == "linux kernel"
@@ -212,29 +216,35 @@ class TestMatchCPEToProduct:
     def test_match_exact(self):
         """Exact vendor/product match."""
         cpe = parse_cpe("cpe:2.3:a:apache:http_server:2.4.51:*:*:*:*:*:*:*")
+        assert cpe is not None
         assert match_cpe_to_product(cpe, "apache", "http_server")
 
     def test_match_with_spaces(self):
         """Match with spaces/underscores normalized."""
         cpe = parse_cpe("cpe:2.3:a:apache:http_server:2.4.51:*:*:*:*:*:*:*")
+        assert cpe is not None
         assert match_cpe_to_product(cpe, "apache", "http server")
 
     def test_match_case_insensitive(self):
         """Match should be case-insensitive."""
         cpe = parse_cpe("cpe:2.3:a:Apache:HTTP_Server:2.4.51:*:*:*:*:*:*:*")
+        assert cpe is not None
         assert match_cpe_to_product(cpe, "apache", "http_server")
 
     def test_match_partial_vendor(self):
         """Partial vendor match."""
         cpe = parse_cpe("cpe:2.3:a:microsoft:windows:10:*:*:*:*:*:*:*")
+        assert cpe is not None
         assert match_cpe_to_product(cpe, "micro", None)
 
     def test_match_partial_product(self):
         """Partial product match."""
         cpe = parse_cpe("cpe:2.3:a:apache:http_server:2.4.51:*:*:*:*:*:*:*")
+        assert cpe is not None
         assert match_cpe_to_product(cpe, None, "http")
 
     def test_no_match(self):
         """Non-matching vendor/product."""
         cpe = parse_cpe("cpe:2.3:a:apache:http_server:2.4.51:*:*:*:*:*:*:*")
+        assert cpe is not None
         assert not match_cpe_to_product(cpe, "nginx", "server")

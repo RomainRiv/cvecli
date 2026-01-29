@@ -18,6 +18,7 @@ Parquet files produced:
 
 import concurrent.futures
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, Iterable, List, Optional
@@ -63,6 +64,8 @@ from cvecli.models.parquet_models import (
     CREDIT_SCHEMA,
     TAG_SCHEMA,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _get_iterable(obj: Any) -> Iterable[Any]:
@@ -1320,5 +1323,6 @@ class ExtractorService:
 
             cve_model = CveJsonRecordFormat.model_validate(cve_data)
             return _extract_single_cve(cve_model)
-        except Exception:
+        except Exception as e:
+            logger.debug("Failed to extract CVE %s: %s", cve_id, e)
             return None

@@ -1,6 +1,5 @@
 """Unit tests for version comparison utilities."""
 
-
 from cvecli.services.version import (
     parse_version,
     compare_versions,

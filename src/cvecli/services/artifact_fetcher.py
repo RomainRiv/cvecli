@@ -28,6 +28,10 @@ DEFAULT_CVECLI_DB_REPO = "RomainRiv/cvecli-db"  # Update with actual repo
 # Files that require semantic search capability (optional)
 SEMANTIC_FILES = {"cve_embeddings.parquet"}
 
+# Default timeouts for HTTP requests (connect timeout, read timeout) in seconds
+DEFAULT_API_TIMEOUT = (10, 30)  # 10s connect, 30s read for API calls
+DEFAULT_DOWNLOAD_TIMEOUT = (30, 300)  # 30s connect, 5min read for file downloads
+
 
 class ManifestIncompatibleError(Exception):
     """Raised when the manifest schema version is incompatible."""
@@ -81,7 +85,7 @@ class ArtifactFetcher:
         if include_prerelease:
             # Get all releases and find the latest (including pre-releases)
             url = f"https://api.github.com/repos/{self.repo}/releases"
-            response = requests.get(url)
+            response = requests.get(url, timeout=DEFAULT_API_TIMEOUT)
             response.raise_for_status()
             releases = response.json()
             if not releases:
@@ -92,7 +96,7 @@ class ArtifactFetcher:
         else:
             # Get the latest official release only
             url = f"https://api.github.com/repos/{self.repo}/releases/latest"
-            response = requests.get(url)
+            response = requests.get(url, timeout=DEFAULT_API_TIMEOUT)
             response.raise_for_status()
             latest_result: dict[str, Any] = response.json()
             return latest_result
@@ -107,7 +111,7 @@ class ArtifactFetcher:
             Release metadata.
         """
         url = f"https://api.github.com/repos/{self.repo}/releases/tags/{tag}"
-        response = requests.get(url)
+        response = requests.get(url, timeout=DEFAULT_API_TIMEOUT)
         response.raise_for_status()
         result: dict[str, Any] = response.json()
         return result
@@ -127,7 +131,7 @@ class ArtifactFetcher:
             expected_sha256: Expected SHA256 hash for verification.
             desc: Description for progress bar.
         """
-        response = requests.get(url, stream=True)
+        response = requests.get(url, stream=True, timeout=DEFAULT_DOWNLOAD_TIMEOUT)
         response.raise_for_status()
         total = int(response.headers.get("content-length", 0))
 
@@ -198,7 +202,9 @@ class ArtifactFetcher:
             )
 
         # Download manifest
-        response = requests.get(manifest_asset["browser_download_url"])
+        response = requests.get(
+            manifest_asset["browser_download_url"], timeout=DEFAULT_API_TIMEOUT
+        )
         response.raise_for_status()
         result: dict[str, Any] = response.json()
         return result

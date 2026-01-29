@@ -218,16 +218,16 @@ def _decode_cpe_value(value: str) -> str:
     return result
 
 
-def parse_cpe(cpe_string: str) -> Optional[CPEComponents]:
+def parse_cpe(cpe_string: Optional[str]) -> Optional[CPEComponents]:
     """Parse a CPE string into its components.
 
     Supports both CPE 2.2 and CPE 2.3 formats.
 
     Args:
-        cpe_string: CPE string to parse.
+        cpe_string: CPE string to parse. Can be None.
 
     Returns:
-        CPEComponents if valid, None if invalid.
+        CPEComponents if valid, None if invalid or input is None.
 
     Examples:
         >>> parse_cpe("cpe:2.3:a:microsoft:windows:10:*:*:*:*:*:*:*")
