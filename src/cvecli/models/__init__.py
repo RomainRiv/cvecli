@@ -1,1 +1,81 @@
-"""Models module for cvecli."""
+"""Models module for cvecli.
+
+This module provides data models for working with CVE data:
+- Pydantic models for type validation
+- Polars schemas for DataFrame type safety
+- Helper functions for loading parquet files with proper typing
+"""
+
+from cvecli.models.parquet_models import (
+    # Pydantic models
+    CVERecord,
+    CVEDescription,
+    CVEMetric,
+    CVEProduct,
+    CVEVersion,
+    CVECWE,
+    CVEReference,
+    CVECredit,
+    CVETag,
+    ExtractedData,
+    ExtractionError,
+    ProcessResult,
+    # Polars schemas
+    CVE_SCHEMA,
+    DESCRIPTION_SCHEMA,
+    METRIC_SCHEMA,
+    PRODUCT_SCHEMA,
+    VERSION_SCHEMA,
+    CWE_SCHEMA,
+    REFERENCE_SCHEMA,
+    CREDIT_SCHEMA,
+    TAG_SCHEMA,
+    # DataFrame container and loaders
+    CVEDataFrames,
+    load_cves,
+    load_descriptions,
+    load_metrics,
+    load_products,
+    load_versions,
+    load_cwes,
+    load_references,
+    load_credits,
+    load_all_dataframes,
+)
+
+__all__ = [
+    # Pydantic models
+    "CVERecord",
+    "CVEDescription",
+    "CVEMetric",
+    "CVEProduct",
+    "CVEVersion",
+    "CVECWE",
+    "CVEReference",
+    "CVECredit",
+    "CVETag",
+    "ExtractedData",
+    "ExtractionError",
+    "ProcessResult",
+    # Polars schemas
+    "CVE_SCHEMA",
+    "DESCRIPTION_SCHEMA",
+    "METRIC_SCHEMA",
+    "PRODUCT_SCHEMA",
+    "VERSION_SCHEMA",
+    "CWE_SCHEMA",
+    "REFERENCE_SCHEMA",
+    "CREDIT_SCHEMA",
+    "TAG_SCHEMA",
+    # DataFrame container and loaders
+    "CVEDataFrames",
+    "load_cves",
+    "load_descriptions",
+    "load_metrics",
+    "load_products",
+    "load_versions",
+    "load_cwes",
+    "load_references",
+    "load_credits",
+    "load_all_dataframes",
+]

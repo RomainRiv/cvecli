@@ -199,6 +199,7 @@ just typecheck
 ```toml
 [project.optional-dependencies]
 semantic = ["fastembed>=0.5.0", "numpy>=2.0.0"]  # For semantic search (~500MB)
+notebook = ["plotly>=6.0.0", "jupyter>=1.0.0", "ipykernel>=6.29.0"]  # For Jupyter notebooks
 dev = ["pytest>=8.0.0", "pytest-cov>=4.1.0", "types-requests", "black", "mypy", ...]
 ```
 
