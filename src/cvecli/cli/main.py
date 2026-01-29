@@ -31,7 +31,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from cvecli import MANIFEST_SCHEMA_VERSION
+from cvecli import MANIFEST_SCHEMA_VERSION, __version__
 from cvecli.core.config import Config
 from cvecli.services.downloader import DownloadService
 from cvecli.services.extractor import ExtractorService
@@ -92,11 +92,34 @@ def normalize_date(date_str: str) -> str:
     return date_str
 
 
+def version_callback(value: bool) -> None:
+    """Print version and exit."""
+    if value:
+        print(f"cvecli version {__version__}")
+        raise typer.Exit()
+
+
 app = typer.Typer(
     name="cvecli",
     help="CVE analysis tool for LLM agents",
     no_args_is_help=True,
 )
+
+
+@app.callback()
+def main_callback(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        "-v",
+        help="Show version and exit.",
+        callback=version_callback,
+        is_eager=True,
+    ),
+) -> None:
+    """CVE analysis tool for LLM agents."""
+    pass
+
 
 # Database management subcommand group
 db_app = typer.Typer(
@@ -345,14 +368,14 @@ def db_extract_embeddings(
         help="Override data directory",
     ),
 ) -> None:
-    """Generate embeddings for semantic search.
+    r"""Generate embeddings for semantic search.
 
     This creates embeddings from CVE titles and descriptions using the
     all-MiniLM-L6-v2 model via fastembed. These embeddings enable
     semantic (natural language) search across CVEs.
 
     Requires the 'semantic' optional dependency:
-        pip install 'cvecli[semantic]'
+        pip install 'cvecli\[semantic]'
 
     You must have parquet data first - run 'cvecli db update' or 'cvecli db build extract-parquet'.
 
@@ -823,6 +846,14 @@ def search(
     output: Optional[str] = typer.Option(
         None, "--output", "-o", help="Write output to file (no truncation when used)"
     ),
+    data_dir: Optional[str] = typer.Option(
+        None,
+        "--data-dir",
+        help="Override data directory",
+    ),
+    quiet: bool = typer.Option(
+        False, "--quiet", "-q", help="Suppress status messages (for scripting)"
+    ),
 ) -> None:
     """Search CVEs by product name, vendor, CWE, CPE, PURL, or natural language.
 
@@ -858,8 +889,18 @@ def search(
         cvecli search "apache" --ids-only               # Output CVE IDs only
         cvecli search --cpe "cpe:2.3:a:apache:http_server:*:*:*:*:*:*:*:*"
         cvecli search "apache" --version 2.4.51         # Filter by affected version
+        cvecli search --state rejected                  # Search by CVE state
     """
-    config = Config()
+    # Validate format option
+    valid_formats = ["table", "json", "markdown"]
+    if format not in valid_formats:
+        console.print(
+            f"[red]Error: Invalid format '{format}'. Must be one of: {', '.join(valid_formats)}[/red]"
+        )
+        raise typer.Exit(1)
+
+    data_path = Path(data_dir) if data_dir else None
+    config = Config(data_dir=data_path)
     service = CVESearchService(config)
 
     # PURL search takes precedence (after CPE)
@@ -879,6 +920,10 @@ def search(
     # CWE filter without query
     elif cwe and not query:
         result = service.by_cwe(cwe)
+    # State filter without query - get all CVEs with that state
+    elif state and not query:
+        result = service.all_cves()
+        result = service.filter_by_state(result, state)
     # Product/vendor filter without query
     elif (product or vendor) and not query:
         # Search by product/vendor filter only
@@ -899,7 +944,7 @@ def search(
         # Validate non-empty query when not using filters
         if not query or not query.strip():
             console.print(
-                "[red]Error: Search query, --product, --vendor, --cpe, --purl, or --cwe option required.[/red]"
+                "[red]Error: Search query, --product, --vendor, --cpe, --purl, --cwe, or --state option required.[/red]"
             )
             raise typer.Exit(1)
 
@@ -1098,6 +1143,11 @@ def get(
     output: Optional[str] = typer.Option(
         None, "--output", "-o", help="Write output to file"
     ),
+    data_dir: Optional[str] = typer.Option(
+        None,
+        "--data-dir",
+        help="Override data directory",
+    ),
 ) -> None:
     """Get details for one or more CVEs.
 
@@ -1107,7 +1157,16 @@ def get(
         cvecli get CVE-2024-1234 --detailed
         cvecli get CVE-2024-1234 --format json --output cve.json
     """
-    config = Config()
+    # Validate format option
+    valid_formats = ["table", "json", "markdown"]
+    if format not in valid_formats:
+        console.print(
+            f"[red]Error: Invalid format '{format}'. Must be one of: {', '.join(valid_formats)}[/red]"
+        )
+        raise typer.Exit(1)
+
+    data_path = Path(data_dir) if data_dir else None
+    config = Config(data_dir=data_path)
     service = CVESearchService(config)
 
     all_results = []
@@ -1182,9 +1241,23 @@ def stats(
     output: Optional[str] = typer.Option(
         None, "--output", "-o", help="Write output to file"
     ),
+    data_dir: Optional[str] = typer.Option(
+        None,
+        "--data-dir",
+        help="Override data directory",
+    ),
 ) -> None:
     """Show database statistics."""
-    config = Config()
+    # Validate format option
+    valid_formats = ["table", "json", "markdown"]
+    if format not in valid_formats:
+        console.print(
+            f"[red]Error: Invalid format '{format}'. Must be one of: {', '.join(valid_formats)}[/red]"
+        )
+        raise typer.Exit(1)
+
+    data_path = Path(data_dir) if data_dir else None
+    config = Config(data_dir=data_path)
     service = CVESearchService(config)
 
     try:
@@ -1285,6 +1358,11 @@ def products(
     output: Optional[str] = typer.Option(
         None, "--output", "-o", help="Write output to file"
     ),
+    data_dir: Optional[str] = typer.Option(
+        None,
+        "--data-dir",
+        help="Override data directory",
+    ),
 ) -> None:
     """Search product/vendor names in the CVE database.
 
@@ -1299,7 +1377,16 @@ def products(
         cvecli products "windows" --mode strict # Exact match for "windows"
         cvecli products "apache.*http" -M regex # Regex pattern
     """
-    config = Config()
+    # Validate format option
+    valid_formats = ["table", "json", "markdown"]
+    if format not in valid_formats:
+        console.print(
+            f"[red]Error: Invalid format '{format}'. Must be one of: {', '.join(valid_formats)}[/red]"
+        )
+        raise typer.Exit(1)
+
+    data_path = Path(data_dir) if data_dir else None
+    config = Config(data_dir=data_path)
     service = CVESearchService(config)
 
     # Validate non-empty query
