@@ -17,7 +17,6 @@ from enum import Enum
 from typing import Any, Literal, List
 
 from pydantic import (
-    AnyUrl,
     BaseModel,
     ConfigDict,
     Field,

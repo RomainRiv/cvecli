@@ -12,10 +12,8 @@ found in CVE data, including:
 - Parsing robustness
 """
 
-import pytest
 
 from cvecli.services.version import (
-    VersionInfo,
     parse_version,
     compare_versions,
     is_version_affected,

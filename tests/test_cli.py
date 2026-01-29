@@ -2,7 +2,6 @@
 
 from unittest.mock import MagicMock
 
-import pytest
 
 from cvecli.cli.formatters import get_severity_info
 

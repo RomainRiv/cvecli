@@ -19,8 +19,6 @@ Parquet files produced:
 import concurrent.futures
 import json
 import os
-import sys
-import traceback
 from pathlib import Path
 from typing import Any, Iterable, List, Optional
 

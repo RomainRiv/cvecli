@@ -1,7 +1,6 @@
 """Download service for CVE, CWE, and CAPEC data."""
 
 import os
-import sys
 import zipfile
 from pathlib import Path
 from typing import Optional

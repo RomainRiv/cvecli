@@ -9,7 +9,6 @@ from cvecli.services.embeddings import (
     EmbeddingsService,
     DEFAULT_MODEL_NAME,
     EMBEDDING_DIMENSION,
-    DEFAULT_BATCH_SIZE,
 )
 
 

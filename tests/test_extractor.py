@@ -2,12 +2,10 @@
 
 from cvecli.models.cve_model import CveJsonRecordFormat
 from cvecli.services.extractor import (
-    CVECWE,
     CVEDescription,
     CVEMetric,
     CVEProduct,
     CVERecord,
-    ExtractedData,
     _extract_single_cve,
     _get_iterable,
     _get_value,
