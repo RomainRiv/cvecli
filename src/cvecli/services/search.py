@@ -334,6 +334,17 @@ class CVESearchService:
 
         return SearchResult(result, **related)
 
+    def all_cves(self) -> SearchResult:
+        """Get all CVEs in the database.
+
+        Returns:
+            SearchResult with all CVEs.
+        """
+        cves_df = self._ensure_cves_loaded()
+        result = cves_df.sort("date_published", descending=True)
+        # Don't load related data for all CVEs - too expensive
+        return SearchResult(result)
+
     def by_product(
         self,
         product: str,
