@@ -13,7 +13,6 @@ from rich.console import Console
 
 from cvecli.constants import (
     CVE_ID_PATTERN,
-    SEVERITY_THRESHOLDS,
     SearchMode,
     OutputFormat,
     SeverityLevel,
@@ -404,13 +403,14 @@ def register_search_command(app: typer.Typer) -> None:
         # Apply severity bucket filter
         if severity:
             sev_lower = severity.lower()
-            if sev_lower not in SEVERITY_THRESHOLDS:
+            try:
+                sev = SeverityLevel(sev_lower)
+            except ValueError:
                 console.print(
                     f"[red]Invalid severity: {severity}. Must be: none, low, medium, high, critical[/red]"
                 )
                 raise typer.Exit(1)
 
-            sev: SeverityLevel = sev_lower  # type: ignore[assignment]
             result = service.filter_by_severity(result, sev)
 
         # Apply CVSS score filters

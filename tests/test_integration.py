@@ -3,6 +3,7 @@
 import polars as pl
 import pytest
 
+from cvecli.constants import SeverityLevel
 from cvecli.core.config import Config
 from cvecli.models.cve_model import CveJsonRecordFormat
 from cvecli.services.extractor import (
@@ -245,7 +246,7 @@ class TestSearchWithRealData:
     def test_search_critical_severity(self, real_config):
         """Test searching for critical CVEs in real data."""
         search = CVESearchService(config=real_config)
-        result = search.by_severity("critical")
+        result = search.by_severity(SeverityLevel.CRITICAL)
 
         # There should be many critical CVEs
         assert result.count > 0

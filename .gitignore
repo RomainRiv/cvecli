@@ -42,6 +42,9 @@ htmlcov/
 data/
 download/
 
+# Examples output
+examples/output/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -49,3 +52,7 @@ Thumbs.db
 # UV
 .uv/
 uv.lock
+
+# Documentation (generated)
+site/
+docs/cli/commands.md

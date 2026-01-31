@@ -7,29 +7,58 @@ and makes it easier to adjust values.
 
 import re
 from enum import Enum
-from typing import Literal, TypeAlias
+from typing import TypeAlias
 
 # =============================================================================
 # Type Aliases
 # =============================================================================
 
 CVEId: TypeAlias = str  # Format: CVE-YYYY-NNNNN
-SeverityLevel: TypeAlias = Literal["none", "low", "medium", "high", "critical"]
+
+
+# =============================================================================
+# Severity Levels
+# =============================================================================
+
+
+class SeverityLevel(Enum):
+    """CVSS severity level classification.
+
+    Based on CVSS v3.x scoring:
+    - NONE: 0.0
+    - LOW: 0.1-3.9
+    - MEDIUM: 4.0-6.9
+    - HIGH: 7.0-8.9
+    - CRITICAL: 9.0-10.0
+    """
+
+    NONE = "none"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
 
 # =============================================================================
 # CVSS Severity Configuration
 # =============================================================================
 
 SEVERITY_THRESHOLDS: dict[SeverityLevel, tuple[float, float]] = {
-    "none": (0.0, 0.0),
-    "low": (0.1, 3.9),
-    "medium": (4.0, 6.9),
-    "high": (7.0, 8.9),
-    "critical": (9.0, 10.0),
+    SeverityLevel.NONE: (0.0, 0.0),
+    SeverityLevel.LOW: (0.1, 3.9),
+    SeverityLevel.MEDIUM: (4.0, 6.9),
+    SeverityLevel.HIGH: (7.0, 8.9),
+    SeverityLevel.CRITICAL: (9.0, 10.0),
 }
 
 # Severity levels in order from lowest to highest
-SEVERITY_ORDER: list[SeverityLevel] = ["none", "low", "medium", "high", "critical"]
+SEVERITY_ORDER: list[SeverityLevel] = [
+    SeverityLevel.NONE,
+    SeverityLevel.LOW,
+    SeverityLevel.MEDIUM,
+    SeverityLevel.HIGH,
+    SeverityLevel.CRITICAL,
+]
 
 # =============================================================================
 # Embedding Model Configuration

@@ -74,3 +74,25 @@ ci: format-check typecheck ty lint test
 # Prepare for release (format, check, test, build)
 release: format check test build
     @echo "Package ready for release in dist/"
+
+# ============================================================================
+# Documentation commands
+# ============================================================================
+
+# Generate CLI documentation from source using Typer
+docs-generate:
+    uv run python scripts/generate_cli_docs.py
+
+# Build documentation site (includes CLI generation)
+docs-build: docs-generate
+    uv run mkdocs build
+
+# Serve documentation locally with live reload
+docs-serve: docs-generate
+    uv run mkdocs serve --open
+
+# Clean generated documentation files
+docs-clean:
+    rm -rf site/
+    rm -f docs/cli/commands.md
+
