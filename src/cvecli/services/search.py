@@ -39,6 +39,23 @@ import polars as pl
 from cvecli.core.config import Config, get_config
 from cvecli.services.cpe import parse_cpe
 from cvecli.services.version import is_version_affected
+from cvecli.models.query_filters import (
+    QueryFilter,
+    IdFilter,
+    ProductFilter,
+    VendorFilter,
+    CweFilter,
+    SeverityFilter,
+    CvssFilter,
+    DateFilter,
+    StateFilter,
+    CpeFilter,
+    PurlFilter,
+    VersionFilter,
+    KevFilter,
+    RecentFilter,
+    TextSearchFilter,
+)
 
 # Import from constants module for centralization
 # Re-export for backward compatibility
@@ -227,7 +244,7 @@ class CVEQuery:
             service: The CVESearchService instance to execute queries against.
         """
         self._service = service
-        self._filters: List[dict] = []
+        self._filters: List[QueryFilter] = []
         self._sort_field: Optional[str] = None
         self._sort_descending: bool = True
         self._limit_count: Optional[int] = None
@@ -257,7 +274,7 @@ class CVEQuery:
             New CVEQuery with the filter applied.
         """
         q = self._copy()
-        q._filters.append({"type": "id", "cve_id": cve_id})
+        q._filters.append(IdFilter(cve_id=cve_id))
         return q
 
     def by_product(
@@ -280,13 +297,12 @@ class CVEQuery:
         """
         q = self._copy()
         q._filters.append(
-            {
-                "type": "product",
-                "product": product,
-                "vendor": vendor,
-                "fuzzy": fuzzy,
-                "exact": exact,
-            }
+            ProductFilter(
+                product=product,
+                vendor=vendor,
+                fuzzy=fuzzy,
+                exact=exact,
+            )
         )
         return q
 
@@ -308,12 +324,11 @@ class CVEQuery:
         """
         q = self._copy()
         q._filters.append(
-            {
-                "type": "vendor",
-                "vendor": vendor,
-                "fuzzy": fuzzy,
-                "exact": exact,
-            }
+            VendorFilter(
+                vendor=vendor,
+                fuzzy=fuzzy,
+                exact=exact,
+            )
         )
         return q
 
@@ -327,7 +342,7 @@ class CVEQuery:
             New CVEQuery with the filter applied.
         """
         q = self._copy()
-        q._filters.append({"type": "cwe", "cwe_id": cwe_id})
+        q._filters.append(CweFilter(cwe_id=cwe_id))
         return q
 
     def by_severity(self, severity: SeverityLevel) -> CVEQuery:
@@ -340,7 +355,7 @@ class CVEQuery:
             New CVEQuery with the filter applied.
         """
         q = self._copy()
-        q._filters.append({"type": "severity", "severity": severity})
+        q._filters.append(SeverityFilter(severity=severity))
         return q
 
     def by_cvss(
@@ -359,11 +374,10 @@ class CVEQuery:
         """
         q = self._copy()
         q._filters.append(
-            {
-                "type": "cvss",
-                "min_score": min_score,
-                "max_score": max_score,
-            }
+            CvssFilter(
+                min_score=min_score,
+                max_score=max_score,
+            )
         )
         return q
 
@@ -382,7 +396,7 @@ class CVEQuery:
             New CVEQuery with the filter applied.
         """
         q = self._copy()
-        q._filters.append({"type": "date", "after": after, "before": before})
+        q._filters.append(DateFilter(after=after, before=before))
         return q
 
     def by_state(self, state: str) -> CVEQuery:
@@ -395,7 +409,7 @@ class CVEQuery:
             New CVEQuery with the filter applied.
         """
         q = self._copy()
-        q._filters.append({"type": "state", "state": state})
+        q._filters.append(StateFilter(state=state))
         return q
 
     def by_cpe(
@@ -414,11 +428,10 @@ class CVEQuery:
         """
         q = self._copy()
         q._filters.append(
-            {
-                "type": "cpe",
-                "cpe_string": cpe_string,
-                "check_version": check_version,
-            }
+            CpeFilter(
+                cpe_string=cpe_string,
+                check_version=check_version,
+            )
         )
         return q
 
@@ -440,12 +453,11 @@ class CVEQuery:
         """
         q = self._copy()
         q._filters.append(
-            {
-                "type": "purl",
-                "purl": purl,
-                "check_version": check_version,
-                "fuzzy": fuzzy,
-            }
+            PurlFilter(
+                purl=purl,
+                check_version=check_version,
+                fuzzy=fuzzy,
+            )
         )
         return q
 
@@ -467,12 +479,11 @@ class CVEQuery:
         """
         q = self._copy()
         q._filters.append(
-            {
-                "type": "version",
-                "version": version,
-                "vendor": vendor,
-                "product": product,
-            }
+            VersionFilter(
+                version=version,
+                vendor=vendor,
+                product=product,
+            )
         )
         return q
 
@@ -483,7 +494,7 @@ class CVEQuery:
             New CVEQuery with the filter applied.
         """
         q = self._copy()
-        q._filters.append({"type": "kev"})
+        q._filters.append(KevFilter())
         return q
 
     def recent(self, days: int = 30) -> CVEQuery:
@@ -496,7 +507,7 @@ class CVEQuery:
             New CVEQuery with the filter applied.
         """
         q = self._copy()
-        q._filters.append({"type": "recent", "days": days})
+        q._filters.append(RecentFilter(days=days))
         return q
 
     def semantic(
@@ -542,12 +553,11 @@ class CVEQuery:
         """
         q = self._copy()
         q._filters.append(
-            {
-                "type": "text_search",
-                "query": query,
-                "mode": mode,
-                "vendor": vendor,
-            }
+            TextSearchFilter(
+                query=query,
+                mode=mode,
+                vendor=vendor,
+            )
         )
         return q
 
@@ -761,88 +771,89 @@ class CVESearchService:
             result_cves = result.cves
             cve_ids = result_cves.get_column("cve_id").to_list()
 
-        # Apply each filter in order
+        # Apply each filter in order using type-safe pattern matching
         for f in query._filters:
-            filter_type = f["type"]
-
-            if filter_type == "id":
-                result_cves, cve_ids = self._apply_id_filter(
-                    result_cves, f["cve_id"], cve_ids
-                )
-            elif filter_type == "product":
-                result_cves, cve_ids = self._apply_product_filter(
-                    result_cves,
-                    f["product"],
-                    f.get("vendor"),
-                    f.get("fuzzy", True),
-                    f.get("exact", False),
-                    cve_ids,
-                )
-            elif filter_type == "vendor":
-                result_cves, cve_ids = self._apply_vendor_filter(
-                    result_cves,
-                    f["vendor"],
-                    f.get("fuzzy", True),
-                    f.get("exact", False),
-                    cve_ids,
-                )
-            elif filter_type == "cwe":
-                result_cves, cve_ids = self._apply_cwe_filter(
-                    result_cves, f["cwe_id"], cve_ids
-                )
-            elif filter_type == "severity":
-                result_cves, cve_ids = self._apply_severity_filter(
-                    result_cves, f["severity"], cve_ids
-                )
-            elif filter_type == "cvss":
-                result_cves, cve_ids = self._apply_cvss_filter(
-                    result_cves, f.get("min_score"), f.get("max_score"), cve_ids
-                )
-            elif filter_type == "date":
-                result_cves, cve_ids = self._apply_date_filter(
-                    result_cves, f.get("after"), f.get("before"), cve_ids
-                )
-            elif filter_type == "state":
-                result_cves, cve_ids = self._apply_state_filter(
-                    result_cves, f["state"], cve_ids
-                )
-            elif filter_type == "cpe":
-                result_cves, cve_ids = self._apply_cpe_filter(
-                    result_cves,
-                    f["cpe_string"],
-                    f.get("check_version"),
-                    cve_ids,
-                )
-            elif filter_type == "purl":
-                result_cves, cve_ids = self._apply_purl_filter(
-                    result_cves,
-                    f["purl"],
-                    f.get("check_version"),
-                    f.get("fuzzy", False),
-                    cve_ids,
-                )
-            elif filter_type == "version":
-                result_cves, cve_ids = self._apply_version_filter(
-                    result_cves,
-                    f["version"],
-                    f.get("vendor"),
-                    f.get("product"),
-                    cve_ids,
-                )
-            elif filter_type == "kev":
-                result_cves, cve_ids = self._apply_kev_filter(result_cves, cve_ids)
-            elif filter_type == "recent":
-                result_cves, cve_ids = self._apply_recent_filter(
-                    result_cves, f.get("days", 30), cve_ids
-                )
-            elif filter_type == "text_search":
-                result_cves, cve_ids = self._apply_text_search_filter(
-                    result_cves,
-                    f["query"],
-                    f.get("mode", SearchMode.FUZZY),
-                    f.get("vendor"),
-                    cve_ids,
-                )
+            match f:
+                case IdFilter(cve_id=cve_id):
+                    result_cves, cve_ids = self._apply_id_filter(
+                        result_cves, cve_id, cve_ids
+                    )
+                case ProductFilter(
+                    product=product, vendor=vendor, fuzzy=fuzzy, exact=exact
+                ):
+                    result_cves, cve_ids = self._apply_product_filter(
+                        result_cves,
+                        product,
+                        vendor,
+                        fuzzy,
+                        exact,
+                        cve_ids,
+                    )
+                case VendorFilter(vendor=vendor, fuzzy=fuzzy, exact=exact):
+                    result_cves, cve_ids = self._apply_vendor_filter(
+                        result_cves,
+                        vendor,
+                        fuzzy,
+                        exact,
+                        cve_ids,
+                    )
+                case CweFilter(cwe_id=cwe_id):
+                    result_cves, cve_ids = self._apply_cwe_filter(
+                        result_cves, cwe_id, cve_ids
+                    )
+                case SeverityFilter(severity=severity):
+                    result_cves, cve_ids = self._apply_severity_filter(
+                        result_cves, severity, cve_ids
+                    )
+                case CvssFilter(min_score=min_score, max_score=max_score):
+                    result_cves, cve_ids = self._apply_cvss_filter(
+                        result_cves, min_score, max_score, cve_ids
+                    )
+                case DateFilter(after=after, before=before):
+                    result_cves, cve_ids = self._apply_date_filter(
+                        result_cves, after, before, cve_ids
+                    )
+                case StateFilter(state=state):
+                    result_cves, cve_ids = self._apply_state_filter(
+                        result_cves, state, cve_ids
+                    )
+                case CpeFilter(cpe_string=cpe_string, check_version=check_version):
+                    result_cves, cve_ids = self._apply_cpe_filter(
+                        result_cves,
+                        cpe_string,
+                        check_version,
+                        cve_ids,
+                    )
+                case PurlFilter(purl=purl, check_version=check_version, fuzzy=fuzzy):
+                    result_cves, cve_ids = self._apply_purl_filter(
+                        result_cves,
+                        purl,
+                        check_version,
+                        fuzzy,
+                        cve_ids,
+                    )
+                case VersionFilter(version=version, vendor=vendor, product=product):
+                    result_cves, cve_ids = self._apply_version_filter(
+                        result_cves,
+                        version,
+                        vendor,
+                        product,
+                        cve_ids,
+                    )
+                case KevFilter():
+                    result_cves, cve_ids = self._apply_kev_filter(result_cves, cve_ids)
+                case RecentFilter(days=days):
+                    result_cves, cve_ids = self._apply_recent_filter(
+                        result_cves, days, cve_ids
+                    )
+                case TextSearchFilter(query=text_query, mode=mode, vendor=vendor):
+                    result_cves, cve_ids = self._apply_text_search_filter(
+                        result_cves,
+                        text_query,
+                        mode,
+                        vendor,
+                        cve_ids,
+                    )
 
         # Apply sorting
         if query._sort_field:

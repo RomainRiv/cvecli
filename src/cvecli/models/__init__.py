@@ -4,8 +4,30 @@ This module provides data models for working with CVE data:
 - Pydantic models for type validation
 - Polars schemas for DataFrame type safety
 - Helper functions for loading parquet files with proper typing
+- Query filter models for type-safe search operations
 """
 
+from cvecli.models.query_filters import (
+    # Base class and type enum
+    QueryFilter,
+    FilterType,
+    AnyFilter,
+    # Filter classes
+    IdFilter,
+    ProductFilter,
+    VendorFilter,
+    CweFilter,
+    SeverityFilter,
+    CvssFilter,
+    DateFilter,
+    StateFilter,
+    CpeFilter,
+    PurlFilter,
+    VersionFilter,
+    KevFilter,
+    RecentFilter,
+    TextSearchFilter,
+)
 from cvecli.models.parquet_models import (
     # Pydantic models
     CVERecord,
@@ -78,4 +100,22 @@ __all__ = [
     "load_references",
     "load_credits",
     "load_all_dataframes",
+    # Query filter models
+    "QueryFilter",
+    "FilterType",
+    "AnyFilter",
+    "IdFilter",
+    "ProductFilter",
+    "VendorFilter",
+    "CweFilter",
+    "SeverityFilter",
+    "CvssFilter",
+    "DateFilter",
+    "StateFilter",
+    "CpeFilter",
+    "PurlFilter",
+    "VersionFilter",
+    "KevFilter",
+    "RecentFilter",
+    "TextSearchFilter",
 ]
