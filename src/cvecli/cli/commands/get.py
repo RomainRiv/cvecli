@@ -70,7 +70,7 @@ def register_get_command(app: typer.Typer) -> None:
         not_found = []
 
         for cve_id in cve_ids:
-            result = service.by_id(cve_id)
+            result = service.query().by_id(cve_id).execute()
             if len(result.cves) == 0:
                 not_found.append(cve_id)
             else:
