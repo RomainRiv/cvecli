@@ -1546,8 +1546,10 @@ class CVESearchService:
         # Build filter based on mode
         if mode == SearchMode.STRICT:
             query_lower = query.lower()
-            desc_filter = pl.col("value").str.to_lowercase().str.contains(
-                query_lower, literal=True
+            desc_filter = (
+                pl.col("value")
+                .str.to_lowercase()
+                .str.contains(query_lower, literal=True)
             )
         elif mode == SearchMode.REGEX:
             try:
