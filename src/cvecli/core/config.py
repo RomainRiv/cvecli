@@ -102,12 +102,6 @@ class Config:
         """Path to CVE embeddings parquet file for semantic search."""
         return self.data_dir / "cve_embeddings.parquet"
 
-    # Legacy alias for backward compatibility
-    @property
-    def cve_cwe_parquet(self) -> Path:
-        """Path to CVE-CWE mapping parquet file (legacy alias)."""
-        return self.cve_cwes_parquet
-
     @property
     def capec_json(self) -> Path:
         """Path to CAPEC JSON file."""
