@@ -20,7 +20,6 @@ from cvecli.cli.formatters.markdown_formatter import (
     output_search_results_markdown,
 )
 from cvecli.cli.formatters.output import (
-    output_cve_detail,
     output_search_results,
 )
 
