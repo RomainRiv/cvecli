@@ -44,7 +44,7 @@ def main() -> None:
         print(f"\n{description}")
         print(f"  PURL: {purl}")
 
-        results = search.by_purl(purl)
+        results = search.query().by_purl(purl).execute()
         print(f"  Found: {results.count} CVEs")
 
         if results.count > 0:

@@ -28,14 +28,14 @@ def main() -> None:
     print(f"CPE: {cpe}\n")
 
     # Search without version filter - gets all CVEs
-    results = search.by_cpe(cpe)
+    results = search.query().by_cpe(cpe).execute()
     print(f"Total CVEs for Apache HTTP Server: {results.count}")
 
     # Search with version filter - only CVEs affecting specific version
     version = "2.4.51"
     print(f"\nFiltering for version {version}...")
 
-    results_filtered = search.by_cpe(cpe, check_version=version)
+    results_filtered = search.query().by_cpe(cpe, check_version=version).execute()
     print(f"CVEs affecting version {version}: {results_filtered.count}")
 
     if results_filtered.count > 0:
@@ -56,7 +56,7 @@ def main() -> None:
     print("=" * 70)
 
     cpe_windows = "cpe:2.3:o:microsoft:windows_10:*:*:*:*:*:*:*:*"
-    results_windows = search.by_cpe(cpe_windows)
+    results_windows = search.query().by_cpe(cpe_windows).execute()
     print(f"Total CVEs for Windows 10: {results_windows.count}")
 
     # Show year distribution

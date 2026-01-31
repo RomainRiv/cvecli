@@ -28,7 +28,7 @@ class TestExtractionToSearchPipeline:
 
         # Search
         search = CVESearchService(config=sample_cve_files)
-        search_result = search.by_id("CVE-2022-2196")
+        search_result = search.query().by_id("CVE-2022-2196").execute()
 
         assert search_result.count == 1
         cve = search_result.to_dicts()[0]
@@ -47,7 +47,7 @@ class TestExtractionToSearchPipeline:
 
         # Search by product
         search = CVESearchService(config=sample_cve_files)
-        result = search.by_product("OpenSSL")
+        result = search.query().by_product("OpenSSL").execute()
 
         assert result.count >= 1
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
@@ -59,7 +59,7 @@ class TestExtractionToSearchPipeline:
         extractor.extract_all(years=[2022])
 
         search = CVESearchService(config=sample_cve_files)
-        result = search.by_cwe("CWE-1188")
+        result = search.query().by_cwe("CWE-1188").execute()
 
         assert result.count >= 1
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
@@ -71,7 +71,7 @@ class TestExtractionToSearchPipeline:
         extractor.extract_all(years=[2016])
 
         search = CVESearchService(config=sample_cve_files)
-        result = search.by_id("CVE-2016-7054")
+        result = search.query().by_id("CVE-2016-7054").execute()
 
         assert result.count == 1
         # Check metric - should be an "other" type with text severity
@@ -85,7 +85,7 @@ class TestExtractionToSearchPipeline:
         extractor.extract_all(years=[2024])
 
         search = CVESearchService(config=sample_cve_files)
-        result = search.by_id("CVE-2024-1234")
+        result = search.query().by_id("CVE-2024-1234").execute()
 
         assert result.count == 1
         metric = search.get_best_metric("CVE-2024-1234")
@@ -226,7 +226,7 @@ class TestSearchWithRealData:
     def test_search_known_cve(self, real_config):
         """Test searching for a known CVE in real data."""
         search = CVESearchService(config=real_config)
-        result = search.by_id("CVE-2024-6387")  # regreSSHion
+        result = search.query().by_id("CVE-2024-6387").execute()  # regreSSHion
 
         if result.count == 0:
             pytest.skip("CVE-2024-6387 not in extracted data")
@@ -238,7 +238,7 @@ class TestSearchWithRealData:
     def test_search_openssl_cves(self, real_config):
         """Test searching for OpenSSL CVEs in real data."""
         search = CVESearchService(config=real_config)
-        result = search.by_product("openssl", fuzzy=True)
+        result = search.query().by_product("openssl", fuzzy=True).execute()
 
         # There should be many OpenSSL CVEs
         assert result.count > 0
@@ -246,7 +246,7 @@ class TestSearchWithRealData:
     def test_search_critical_severity(self, real_config):
         """Test searching for critical CVEs in real data."""
         search = CVESearchService(config=real_config)
-        result = search.by_severity(SeverityLevel.CRITICAL)
+        result = search.query().by_severity(SeverityLevel.CRITICAL).execute()
 
         # There should be many critical CVEs
         assert result.count > 0

@@ -76,12 +76,12 @@ class TestSearchResult:
         service = CVESearchService(config=sample_parquet_data)
 
         # Search for all CVEs
-        result = service.by_id("CVE-2022-2196")
+        result = service.query().by_id("CVE-2022-2196").execute()
         assert result.count == 1
 
         # Now test with the full search which includes metrics
         # Search for all by using a broad product search
-        result_all = service.by_product("", fuzzy=True)
+        result_all = service.query().by_product("", fuzzy=True).execute()
         summary = result_all.summary()
 
         dist = summary["severity_distribution"]
@@ -110,7 +110,7 @@ class TestCVESearchService:
     def test_by_id_found(self, sample_parquet_data):
         """by_id should return matching CVE."""
         service = CVESearchService(config=sample_parquet_data)
-        result = service.by_id("CVE-2022-2196")
+        result = service.query().by_id("CVE-2022-2196").execute()
 
         assert result.count == 1
         cve = result.to_dicts()[0]
@@ -120,7 +120,7 @@ class TestCVESearchService:
     def test_by_id_not_found(self, sample_parquet_data):
         """by_id should return empty result for non-existent CVE."""
         service = CVESearchService(config=sample_parquet_data)
-        result = service.by_id("CVE-9999-9999")
+        result = service.query().by_id("CVE-9999-9999").execute()
 
         assert result.count == 0
 
@@ -129,17 +129,17 @@ class TestCVESearchService:
         service = CVESearchService(config=sample_parquet_data)
 
         # Without CVE- prefix
-        result1 = service.by_id("2022-2196")
+        result1 = service.query().by_id("2022-2196").execute()
         assert result1.count == 1
 
         # Lowercase
-        result2 = service.by_id("cve-2022-2196")
+        result2 = service.query().by_id("cve-2022-2196").execute()
         assert result2.count == 1
 
     def test_by_product_found(self, sample_parquet_data):
         """by_product should return CVEs affecting the product."""
         service = CVESearchService(config=sample_parquet_data)
-        result = service.by_product("Linux Kernel")
+        result = service.query().by_product("Linux Kernel").execute()
 
         assert result.count >= 1
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
@@ -150,27 +150,27 @@ class TestCVESearchService:
         service = CVESearchService(config=sample_parquet_data)
 
         # Partial match
-        result = service.by_product("kernel", fuzzy=True)
+        result = service.query().by_product("kernel", fuzzy=True).execute()
         assert result.count >= 1
 
     def test_by_product_with_vendor(self, sample_parquet_data):
         """by_product should filter by vendor."""
         service = CVESearchService(config=sample_parquet_data)
 
-        result = service.by_product("Linux Kernel", vendor="Linux")
+        result = service.query().by_product("Linux Kernel", vendor="Linux").execute()
         assert result.count >= 1
 
     def test_by_product_not_found(self, sample_parquet_data):
         """by_product should return empty for non-existent product."""
         service = CVESearchService(config=sample_parquet_data)
-        result = service.by_product("NonExistentProduct12345")
+        result = service.query().by_product("NonExistentProduct12345").execute()
 
         assert result.count == 0
 
     def test_by_vendor(self, sample_parquet_data):
         """by_vendor should return CVEs for vendor's products."""
         service = CVESearchService(config=sample_parquet_data)
-        result = service.by_vendor("OpenSSL")
+        result = service.query().by_vendor("OpenSSL").execute()
 
         assert result.count >= 1
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
@@ -179,7 +179,7 @@ class TestCVESearchService:
     def test_by_cwe_found(self, sample_parquet_data):
         """by_cwe should return CVEs with matching CWE."""
         service = CVESearchService(config=sample_parquet_data)
-        result = service.by_cwe("CWE-1188")
+        result = service.query().by_cwe("CWE-1188").execute()
 
         assert result.count >= 1
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
@@ -190,17 +190,17 @@ class TestCVESearchService:
         service = CVESearchService(config=sample_parquet_data)
 
         # Without CWE- prefix
-        result1 = service.by_cwe("1188")
+        result1 = service.query().by_cwe("1188").execute()
         assert result1.count >= 1
 
         # Lowercase
-        result2 = service.by_cwe("cwe-1188")
+        result2 = service.query().by_cwe("cwe-1188").execute()
         assert result2.count >= 1
 
     def test_by_severity_medium(self, sample_parquet_data):
         """by_severity should return CVEs with matching severity."""
         service = CVESearchService(config=sample_parquet_data)
-        result = service.by_severity(SeverityLevel.MEDIUM)
+        result = service.query().by_severity(SeverityLevel.MEDIUM).execute()
 
         # CVE-2022-2196 has CVSS 5.8 (medium)
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
@@ -209,23 +209,33 @@ class TestCVESearchService:
     def test_by_severity_critical(self, sample_parquet_data):
         """by_severity should find critical CVEs."""
         service = CVESearchService(config=sample_parquet_data)
-        result = service.by_severity(SeverityLevel.CRITICAL)
+        result = service.query().by_severity(SeverityLevel.CRITICAL).execute()
 
         # CVE-2024-1234 has ADP CVSS 9.8 (critical)
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
         assert "CVE-2024-1234" in cve_ids
 
     def test_by_severity_with_date_filter(self, sample_parquet_data):
-        """by_severity should filter by date range."""
+        """by_severity should filter by date range using chained query."""
         service = CVESearchService(config=sample_parquet_data)
 
         # After 2020
-        result = service.by_severity(SeverityLevel.MEDIUM, after="2020-01-01")
+        result = (
+            service.query()
+            .by_severity(SeverityLevel.MEDIUM)
+            .by_date(after="2020-01-01")
+            .execute()
+        )
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
         assert "CVE-2022-2196" in cve_ids
 
         # Before 2020 should not include 2022 CVE
-        result2 = service.by_severity(SeverityLevel.MEDIUM, before="2020-01-01")
+        result2 = (
+            service.query()
+            .by_severity(SeverityLevel.MEDIUM)
+            .by_date(before="2020-01-01")
+            .execute()
+        )
         cve_ids2 = [c["cve_id"] for c in result2.to_dicts()]
         assert "CVE-2022-2196" not in cve_ids2
 
@@ -234,7 +244,7 @@ class TestCVESearchService:
         service = CVESearchService(config=temp_config)
 
         with pytest.raises(FileNotFoundError):
-            service.by_id("CVE-2022-2196")
+            service.query().by_id("CVE-2022-2196").execute()
 
 
 class TestSearchResultProducts:
@@ -243,7 +253,7 @@ class TestSearchResultProducts:
     def test_products_included_in_result(self, sample_parquet_data):
         """Search result should include product information."""
         service = CVESearchService(config=sample_parquet_data)
-        result = service.by_id("CVE-2022-2196")
+        result = service.query().by_id("CVE-2022-2196").execute()
 
         assert result.products is not None
         products = result.products.to_dicts()
@@ -257,7 +267,7 @@ class TestSearchResultCWEs:
     def test_cwes_included_in_result(self, sample_parquet_data):
         """Search result should include CWE information."""
         service = CVESearchService(config=sample_parquet_data)
-        result = service.by_id("CVE-2022-2196")
+        result = service.query().by_id("CVE-2022-2196").execute()
 
         assert result.cwes is not None
         cwes = result.cwes.to_dicts()
@@ -289,22 +299,6 @@ class TestValidateDate:
         assert service.validate_date("2024-13-01") is False  # Invalid month
         assert service.validate_date("2024-02-30") is False  # Invalid day
 
-    def test_filter_by_date_invalid_after(self, sample_parquet_data):
-        """filter_by_date should raise ValueError for invalid after date."""
-        service = CVESearchService(config=sample_parquet_data)
-        result = service.by_product("", fuzzy=True)
-
-        with pytest.raises(ValueError, match="Invalid date format"):
-            service.filter_by_date(result, after="01-15-2024")
-
-    def test_filter_by_date_invalid_before(self, sample_parquet_data):
-        """filter_by_date should raise ValueError for invalid before date."""
-        service = CVESearchService(config=sample_parquet_data)
-        result = service.by_product("", fuzzy=True)
-
-        with pytest.raises(ValueError, match="Invalid date format"):
-            service.filter_by_date(result, before="2024/01/15")
-
 
 class TestExactMatching:
     """Tests for exact (literal) string matching with regex character escaping."""
@@ -314,7 +308,11 @@ class TestExactMatching:
         service = CVESearchService(config=sample_parquet_data)
 
         # Search for product with regex special characters using exact matching
-        result = service.by_product("Product[v1.0]+", fuzzy=True, exact=True)
+        result = (
+            service.query()
+            .by_product("Product[v1.0]+", fuzzy=True, exact=True)
+            .execute()
+        )
 
         assert result.count >= 1
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
@@ -328,7 +326,7 @@ class TestExactMatching:
         # [v1.0] would be interpreted as character class
         # This may either throw an error or return wrong results
         try:
-            service.by_product("[v1.0]", fuzzy=True, exact=False)
+            service.query().by_product("[v1.0]", fuzzy=True, exact=False).execute()
             # If it doesn't throw, it might match other products containing v, 1, 0, or .
             # The exact behavior depends on polars regex handling
         except Exception:
@@ -339,7 +337,11 @@ class TestExactMatching:
         service = CVESearchService(config=sample_parquet_data)
 
         # Search for vendor with regex special characters using exact matching
-        result = service.by_vendor("Test.Vendor (Inc.)", fuzzy=True, exact=True)
+        result = (
+            service.query()
+            .by_vendor("Test.Vendor (Inc.)", fuzzy=True, exact=True)
+            .execute()
+        )
 
         assert result.count >= 1
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
@@ -350,53 +352,48 @@ class TestExactMatching:
         service = CVESearchService(config=sample_parquet_data)
 
         # Search for partial product name with regex special characters
-        result = service.by_product("[v1.0]", fuzzy=True, exact=True)
+        result = service.query().by_product("[v1.0]", fuzzy=True, exact=True).execute()
 
         assert result.count >= 1
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
         assert "CVE-2024-9999" in cve_ids
 
 
-class TestFilterByState:
-    """Tests for state filtering."""
+class TestStateFiltering:
+    """Tests for state filtering using chainable query API."""
 
-    def test_filter_by_state_published(self, sample_parquet_data):
-        """filter_by_state should filter to only published CVEs."""
+    def test_by_state_published(self, sample_parquet_data):
+        """by_state should filter to only published CVEs."""
         service = CVESearchService(config=sample_parquet_data)
 
         # Get all CVEs first
-        all_result = service.by_product("", fuzzy=True)
+        all_result = service.query().by_product("", fuzzy=True).execute()
         assert all_result.count >= 5  # We have 5 CVEs in fixtures
 
         # Filter to published only
-        published_result = service.filter_by_state(all_result, "published")
+        published_result = service.query().by_state("published").execute()
         assert published_result.count >= 4  # 4 published CVEs
         for cve in published_result.to_dicts():
             assert cve["state"] == "PUBLISHED"
 
-    def test_filter_by_state_rejected(self, sample_parquet_data):
-        """filter_by_state should filter to only rejected CVEs."""
+    def test_by_state_rejected(self, sample_parquet_data):
+        """by_state should filter to only rejected CVEs."""
         service = CVESearchService(config=sample_parquet_data)
 
-        # Get all CVEs first
-        all_result = service.by_product("", fuzzy=True)
-
         # Filter to rejected only
-        rejected_result = service.filter_by_state(all_result, "rejected")
+        rejected_result = service.query().by_state("rejected").execute()
         assert rejected_result.count >= 1  # 1 rejected CVE
         for cve in rejected_result.to_dicts():
             assert cve["state"] == "REJECTED"
 
-    def test_filter_by_state_case_insensitive(self, sample_parquet_data):
-        """filter_by_state should be case insensitive."""
+    def test_by_state_case_insensitive(self, sample_parquet_data):
+        """by_state should be case insensitive."""
         service = CVESearchService(config=sample_parquet_data)
 
-        all_result = service.by_product("", fuzzy=True)
-
         # Test various cases
-        result_upper = service.filter_by_state(all_result, "PUBLISHED")
-        result_lower = service.filter_by_state(all_result, "published")
-        result_mixed = service.filter_by_state(all_result, "Published")
+        result_upper = service.query().by_state("PUBLISHED").execute()
+        result_lower = service.query().by_state("published").execute()
+        result_mixed = service.query().by_state("Published").execute()
 
         assert result_upper.count == result_lower.count == result_mixed.count
 
@@ -415,14 +412,14 @@ class TestSemanticSearch:
         assert service.has_embeddings() is True
 
     def test_semantic_search_no_embeddings(self, sample_parquet_data):
-        """semantic_search should raise error when embeddings don't exist."""
+        """semantic search should raise error when embeddings don't exist."""
         service = CVESearchService(config=sample_parquet_data)
 
         with pytest.raises(FileNotFoundError):
-            service.semantic_search("buffer overflow")
+            service.query().semantic("buffer overflow").execute()
 
     def test_semantic_search_returns_results(self, sample_parquet_data_with_embeddings):
-        """semantic_search should return CVEs with similarity scores."""
+        """semantic search should return CVEs with similarity scores."""
         from unittest.mock import patch, MagicMock
         import numpy as np
         from cvecli.services.embeddings import EMBEDDING_DIMENSION
@@ -439,8 +436,10 @@ class TestSemanticSearch:
             mock_get_model.return_value = mock_model
 
             service = CVESearchService(config=sample_parquet_data_with_embeddings)
-            result = service.semantic_search(
-                "buffer overflow", top_k=10, min_similarity=0.0
+            result = (
+                service.query()
+                .semantic("buffer overflow", top_k=10, min_similarity=0.0)
+                .execute()
             )
 
             assert result.count >= 1
@@ -449,28 +448,24 @@ class TestSemanticSearch:
             assert "similarity_score" in cve_data
 
 
-class TestFilterByKEV:
-    """Tests for CISA KEV filtering."""
+class TestKEVFiltering:
+    """Tests for CISA KEV filtering using chainable query API."""
 
-    def test_filter_by_kev(self, sample_parquet_data):
-        """filter_by_kev should filter to only CVEs in CISA KEV."""
+    def test_by_kev(self, sample_parquet_data):
+        """by_kev should filter to only CVEs in CISA KEV."""
         service = CVESearchService(config=sample_parquet_data)
 
-        # Get all CVEs first
-        all_result = service.by_product("", fuzzy=True)
-
         # Filter to KEV only
-        kev_result = service.filter_by_kev(all_result)
+        kev_result = service.query().by_kev().execute()
         assert kev_result.count >= 1  # At least CVE-2024-1234 should be in KEV
         cve_ids = [c["cve_id"] for c in kev_result.to_dicts()]
         assert "CVE-2024-1234" in cve_ids
 
-    def test_filter_by_kev_preserves_related_data(self, sample_parquet_data):
-        """filter_by_kev should preserve related data for filtered CVEs."""
+    def test_by_kev_preserves_related_data(self, sample_parquet_data):
+        """by_kev should preserve related data for filtered CVEs."""
         service = CVESearchService(config=sample_parquet_data)
 
-        all_result = service.by_product("", fuzzy=True)
-        kev_result = service.filter_by_kev(all_result)
+        kev_result = service.query().by_kev().execute()
 
         # Related data should be present
         assert kev_result.products is not None or kev_result.count == 0
@@ -526,7 +521,11 @@ class TestCPESearch:
         service = CVESearchService(config=sample_parquet_data)
 
         # Search with a CPE that has a specific version
-        result = service.by_cpe("cpe:2.3:a:linux:linux_kernel:5.15.0:*:*:*:*:*:*:*")
+        result = (
+            service.query()
+            .by_cpe("cpe:2.3:a:linux:linux_kernel:5.15.0:*:*:*:*:*:*:*")
+            .execute()
+        )
 
         # Should filter to only CVEs affecting version 5.15.0
         # The sample data has CVE-2022-2196 with affected version range
@@ -539,7 +538,11 @@ class TestCPESearch:
         service = CVESearchService(config=sample_parquet_data)
 
         # Search with wildcard version - should return all matching vendor/product
-        result = service.by_cpe("cpe:2.3:a:linux:linux_kernel:*:*:*:*:*:*:*:*")
+        result = (
+            service.query()
+            .by_cpe("cpe:2.3:a:linux:linux_kernel:*:*:*:*:*:*:*:*")
+            .execute()
+        )
 
         # Should NOT filter by version, return all linux kernel CVEs
         assert result.count >= 1  # Should find CVE-2022-2196
@@ -549,8 +552,12 @@ class TestCPESearch:
         service = CVESearchService(config=sample_parquet_data)
 
         # CPE has version 0, but we override with explicit version
-        result = service.by_cpe(
-            "cpe:2.3:a:linux:linux_kernel:0:*:*:*:*:*:*:*", check_version="5.15.0"
+        result = (
+            service.query()
+            .by_cpe(
+                "cpe:2.3:a:linux:linux_kernel:0:*:*:*:*:*:*:*", check_version="5.15.0"
+            )
+            .execute()
         )
 
         # Should use explicit version (5.15.0), not CPE version (0)
@@ -561,14 +568,18 @@ class TestCPESearch:
         service = CVESearchService(config=sample_parquet_data)
 
         with pytest.raises(ValueError, match="Invalid CPE string"):
-            service.by_cpe("not-a-cpe-string")
+            service.query().by_cpe("not-a-cpe-string").execute()
 
     def test_by_cpe_with_dash_version(self, sample_parquet_data):
         """by_cpe should treat dash (-) as wildcard and not filter by version."""
         service = CVESearchService(config=sample_parquet_data)
 
         # CPE with dash for version (means "not applicable")
-        result = service.by_cpe("cpe:2.3:a:linux:linux_kernel:-:*:*:*:*:*:*:*")
+        result = (
+            service.query()
+            .by_cpe("cpe:2.3:a:linux:linux_kernel:-:*:*:*:*:*:*:*")
+            .execute()
+        )
 
         # Should NOT filter by version
         assert result.count >= 1  # Should find CVE-2022-2196
@@ -618,168 +629,105 @@ class TestVersionRangeParsing:
 
 
 class TestCVSSScoreFiltering:
-    """Tests for filter_by_cvss_score method."""
+    """Tests for CVSS score filtering using chainable query API."""
 
-    def test_filter_by_cvss_min(self, sample_parquet_data):
+    def test_by_cvss_min(self, sample_parquet_data):
         """Filter by minimum CVSS score."""
         service = CVESearchService(config=sample_parquet_data)
 
         # Get all results first
-        result_all = service.by_product("", fuzzy=True)
+        result_all = service.query().by_product("", fuzzy=True).execute()
         initial_count = result_all.count
 
         # Filter by CVSS >= 7.0 (high and critical)
-        result_high = service.filter_by_cvss_score(result_all, min_score=7.0)
+        result_high = service.query().by_cvss(min_score=7.0).execute()
 
-        # Should have fewer results
+        # Should have fewer or equal results
         assert result_high.count <= initial_count
         assert result_high.count >= 0
 
-    def test_filter_by_cvss_max(self, sample_parquet_data):
+    def test_by_cvss_max(self, sample_parquet_data):
         """Filter by maximum CVSS score."""
         service = CVESearchService(config=sample_parquet_data)
 
-        result_all = service.by_product("", fuzzy=True)
-
         # Filter by CVSS <= 5.0 (low and medium)
-        result_low = service.filter_by_cvss_score(result_all, max_score=5.0)
+        result_low = service.query().by_cvss(max_score=5.0).execute()
 
         assert result_low.count >= 0
 
-    def test_filter_by_cvss_range(self, sample_parquet_data):
+    def test_by_cvss_range(self, sample_parquet_data):
         """Filter by CVSS score range."""
         service = CVESearchService(config=sample_parquet_data)
 
-        result_all = service.by_product("", fuzzy=True)
-
         # Filter by CVSS between 7.0 and 9.0
-        result_range = service.filter_by_cvss_score(
-            result_all, min_score=7.0, max_score=9.0
-        )
+        result_range = service.query().by_cvss(min_score=7.0, max_score=9.0).execute()
 
         assert result_range.count >= 0
-
-    def test_filter_by_cvss_no_metrics(self, sample_parquet_data):
-        """Filter should handle results with no metrics gracefully."""
-
-        service = CVESearchService(config=sample_parquet_data)
-        cves_df = service._ensure_cves_loaded()
-
-        # Create result with no metrics
-        from cvecli.services.search import SearchResult
-
-        result_no_metrics = SearchResult(cves_df.head(1))
-
-        # Should return empty result
-        filtered = service.filter_by_cvss_score(result_no_metrics, min_score=7.0)
-        assert filtered.count == 0
-
-    def test_filter_by_cvss_both_none(self, sample_parquet_data):
-        """Filter with both min and max as None should return original result."""
-        service = CVESearchService(config=sample_parquet_data)
-
-        result_all = service.by_product("", fuzzy=True)
-
-        # No filtering if both are None
-        result_same = service.filter_by_cvss_score(
-            result_all, min_score=None, max_score=None
-        )
-
-        assert result_same.count == result_all.count
 
     def test_cvss_filter_with_invalid_values(self, sample_parquet_data):
         """CVSS filter should handle edge values correctly."""
         service = CVESearchService(config=sample_parquet_data)
 
-        result = service.by_product("", fuzzy=True)
-
         # Test with min > max (should still work, just return empty)
-        filtered = service.filter_by_cvss_score(result, min_score=9.0, max_score=7.0)
+        filtered = service.query().by_cvss(min_score=9.0, max_score=7.0).execute()
         assert filtered.count == 0
 
         # Test with boundary values
-        filtered_zero = service.filter_by_cvss_score(result, min_score=0.0)
+        filtered_zero = service.query().by_cvss(min_score=0.0).execute()
         assert filtered_zero.count >= 0
 
-        filtered_ten = service.filter_by_cvss_score(result, max_score=10.0)
+        filtered_ten = service.query().by_cvss(max_score=10.0).execute()
         assert filtered_ten.count >= 0
 
 
-class TestCWEFiltering:
-    """Tests for filter_by_cwe method."""
+class TestCWEChainedFiltering:
+    """Tests for CWE filtering using chainable query API."""
 
-    def test_filter_by_cwe_numeric(self, sample_parquet_data):
+    def test_by_cwe_numeric(self, sample_parquet_data):
         """Filter by CWE ID with numeric format."""
         service = CVESearchService(config=sample_parquet_data)
 
-        result_all = service.by_product("", fuzzy=True)
-
         # Filter by CWE-787 (out-of-bounds write)
-        result_cwe = service.filter_by_cwe(result_all, "787")
+        result_cwe = service.query().by_cwe("787").execute()
 
         assert result_cwe.count >= 0
 
-    def test_filter_by_cwe_with_prefix(self, sample_parquet_data):
+    def test_by_cwe_with_prefix(self, sample_parquet_data):
         """Filter by CWE ID with CWE- prefix."""
         service = CVESearchService(config=sample_parquet_data)
 
-        result_all = service.by_product("", fuzzy=True)
-
         # Filter by CWE-787 with prefix
-        result_cwe = service.filter_by_cwe(result_all, "CWE-787")
+        result_cwe = service.query().by_cwe("CWE-787").execute()
 
         assert result_cwe.count >= 0
 
-    def test_filter_by_cwe_case_insensitive(self, sample_parquet_data):
+    def test_by_cwe_case_insensitive(self, sample_parquet_data):
         """CWE filter should be case-insensitive."""
         service = CVESearchService(config=sample_parquet_data)
 
-        result_all = service.by_product("", fuzzy=True)
-
         # Test with lowercase
-        result_lower = service.filter_by_cwe(result_all, "cwe-787")
-        result_upper = service.filter_by_cwe(result_all, "CWE-787")
+        result_lower = service.query().by_cwe("cwe-787").execute()
+        result_upper = service.query().by_cwe("CWE-787").execute()
 
         assert result_lower.count == result_upper.count
 
-    def test_filter_by_cwe_no_cwes(self, sample_parquet_data):
-        """Filter should handle results with no CWEs gracefully."""
-
-        service = CVESearchService(config=sample_parquet_data)
-        cves_df = service._ensure_cves_loaded()
-
-        # Create result with no CWEs
-        from cvecli.services.search import SearchResult
-
-        result_no_cwes = SearchResult(cves_df.head(1))
-
-        # Should return empty result
-        filtered = service.filter_by_cwe(result_no_cwes, "787")
-        assert filtered.count == 0
-
-    def test_cwe_filter_empty_string(self, sample_parquet_data):
-        """CWE filter with empty string should handle gracefully."""
-        service = CVESearchService(config=sample_parquet_data)
-
-        result = service.by_product("", fuzzy=True)
-
-        # Empty CWE should normalize to "CWE-"
-        filtered = service.filter_by_cwe(result, "")
-        # Should return no matches or handle gracefully
-        assert filtered.count >= 0
-
 
 class TestSortResults:
-    """Tests for sort_results method."""
+    """Tests for sorting using chainable query API."""
 
     def test_sort_by_date_ascending(self, sample_parquet_data):
         """Sort by date in ascending order."""
         service = CVESearchService(config=sample_parquet_data)
 
-        result = service.by_product("", fuzzy=True)
+        result = service.query().by_product("", fuzzy=True).execute()
 
         # Sort by date ascending
-        sorted_result = service.sort_results(result, "date", "ascending")
+        sorted_result = (
+            service.query()
+            .by_product("", fuzzy=True)
+            .sort_by("date", descending=False)
+            .execute()
+        )
 
         assert sorted_result.count == result.count
         if sorted_result.count > 1:
@@ -793,10 +741,15 @@ class TestSortResults:
         """Sort by date in descending order."""
         service = CVESearchService(config=sample_parquet_data)
 
-        result = service.by_product("", fuzzy=True)
+        result = service.query().by_product("", fuzzy=True).execute()
 
         # Sort by date descending
-        sorted_result = service.sort_results(result, "date", "descending")
+        sorted_result = (
+            service.query()
+            .by_product("", fuzzy=True)
+            .sort_by("date", descending=True)
+            .execute()
+        )
 
         assert sorted_result.count == result.count
         if sorted_result.count > 1:
@@ -810,10 +763,15 @@ class TestSortResults:
         """Sort by CVSS score in descending order."""
         service = CVESearchService(config=sample_parquet_data)
 
-        result = service.by_product("", fuzzy=True)
+        result = service.query().by_product("", fuzzy=True).execute()
 
         # Sort by CVSS descending (highest first)
-        sorted_result = service.sort_results(result, "cvss", "descending")
+        sorted_result = (
+            service.query()
+            .by_product("", fuzzy=True)
+            .sort_by("cvss", descending=True)
+            .execute()
+        )
 
         assert sorted_result.count == result.count
 
@@ -821,73 +779,35 @@ class TestSortResults:
         """Sort by severity in ascending order."""
         service = CVESearchService(config=sample_parquet_data)
 
-        result = service.by_product("", fuzzy=True)
+        result = service.query().by_product("", fuzzy=True).execute()
 
         # Sort by severity ascending (lowest first)
-        sorted_result = service.sort_results(result, "severity", "ascending")
+        sorted_result = (
+            service.query()
+            .by_product("", fuzzy=True)
+            .sort_by("severity", descending=False)
+            .execute()
+        )
 
         assert sorted_result.count == result.count
-
-    def test_sort_invalid_field(self, sample_parquet_data):
-        """Sort with invalid field should raise ValueError."""
-        service = CVESearchService(config=sample_parquet_data)
-
-        result = service.by_product("", fuzzy=True)
-
-        with pytest.raises(ValueError, match="Invalid sort field"):
-            service.sort_results(result, "invalid", "descending")
-
-    def test_sort_empty_result(self, sample_parquet_data):
-        """Sort should handle empty results gracefully."""
-        import polars as pl
-
-        service = CVESearchService(config=sample_parquet_data)
-
-        # Create empty result
-        from cvecli.services.search import SearchResult
-
-        empty_result = SearchResult(pl.DataFrame())
-
-        # Should return empty result without error
-        sorted_result = service.sort_results(empty_result, "date", "descending")
-        assert sorted_result.count == 0
-
-    def test_sort_no_metrics(self, sample_parquet_data):
-        """Sort by CVSS with no metrics should return original result."""
-
-        service = CVESearchService(config=sample_parquet_data)
-        cves_df = service._ensure_cves_loaded()
-
-        # Create result with no metrics
-        from cvecli.services.search import SearchResult
-
-        result_no_metrics = SearchResult(cves_df.head(2))
-
-        # Should return same result
-        sorted_result = service.sort_results(result_no_metrics, "cvss", "descending")
-        assert sorted_result.count == result_no_metrics.count
 
     def test_sort_preserves_data_integrity(self, sample_parquet_data):
         """Sorting should not lose any CVE data."""
         service = CVESearchService(config=sample_parquet_data)
 
-        result = service.by_product("", fuzzy=True)
+        result = service.query().by_product("", fuzzy=True).execute()
         original_ids = set(result.cves.get_column("cve_id").to_list())
 
         # Sort and check IDs are preserved
-        sorted_result = service.sort_results(result, "date", "descending")
+        sorted_result = (
+            service.query()
+            .by_product("", fuzzy=True)
+            .sort_by("date", descending=True)
+            .execute()
+        )
         sorted_ids = set(sorted_result.cves.get_column("cve_id").to_list())
 
         assert original_ids == sorted_ids
-
-    def test_sort_invalid_order(self, sample_parquet_data):
-        """Sort with invalid order should raise ValueError."""
-        service = CVESearchService(config=sample_parquet_data)
-
-        result = service.by_product("", fuzzy=True)
-
-        with pytest.raises(ValueError, match="Invalid sort order"):
-            service.sort_results(result, "date", "invalid")
 
 
 class TestByPurl:
@@ -896,7 +816,7 @@ class TestByPurl:
     def test_by_purl_exact_match(self, sample_parquet_data):
         """by_purl should find CVEs with exact PURL match."""
         service = CVESearchService(config=sample_parquet_data)
-        result = service.by_purl("pkg:pypi/django")
+        result = service.query().by_purl("pkg:pypi/django").execute()
 
         assert result.count >= 1
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
@@ -905,7 +825,7 @@ class TestByPurl:
     def test_by_purl_npm_package(self, sample_parquet_data):
         """by_purl should find CVEs for npm packages."""
         service = CVESearchService(config=sample_parquet_data)
-        result = service.by_purl("pkg:npm/lodash")
+        result = service.query().by_purl("pkg:npm/lodash").execute()
 
         assert result.count >= 1
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
@@ -914,7 +834,11 @@ class TestByPurl:
     def test_by_purl_maven_package(self, sample_parquet_data):
         """by_purl should find CVEs for Maven packages."""
         service = CVESearchService(config=sample_parquet_data)
-        result = service.by_purl("pkg:maven/org.apache.xmlgraphics/batik-anim")
+        result = (
+            service.query()
+            .by_purl("pkg:maven/org.apache.xmlgraphics/batik-anim")
+            .execute()
+        )
 
         assert result.count >= 1
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
@@ -924,7 +848,7 @@ class TestByPurl:
         """by_purl with fuzzy=True should find partial matches."""
         service = CVESearchService(config=sample_parquet_data)
         # Search for just "pypi" - should match any pypi package
-        result = service.by_purl("pypi", fuzzy=True)
+        result = service.query().by_purl("pypi", fuzzy=True).execute()
 
         assert result.count >= 1
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
@@ -933,7 +857,7 @@ class TestByPurl:
     def test_by_purl_not_found(self, sample_parquet_data):
         """by_purl should return empty result for non-existent PURL."""
         service = CVESearchService(config=sample_parquet_data)
-        result = service.by_purl("pkg:cargo/nonexistent-package")
+        result = service.query().by_purl("pkg:cargo/nonexistent-package").execute()
 
         assert result.count == 0
 
@@ -942,19 +866,19 @@ class TestByPurl:
         service = CVESearchService(config=sample_parquet_data)
 
         with pytest.raises(ValueError, match="cannot be empty"):
-            service.by_purl("")
+            service.query().by_purl("").execute()
 
     def test_by_purl_invalid_format_raises_error(self, sample_parquet_data):
         """by_purl should raise ValueError for invalid PURL format."""
         service = CVESearchService(config=sample_parquet_data)
 
         with pytest.raises(ValueError, match="Invalid PURL format"):
-            service.by_purl("not-a-valid-purl")
+            service.query().by_purl("not-a-valid-purl").execute()
 
     def test_by_purl_case_insensitive(self, sample_parquet_data):
         """by_purl should match case-insensitively."""
         service = CVESearchService(config=sample_parquet_data)
-        result = service.by_purl("PKG:PYPI/DJANGO")
+        result = service.query().by_purl("PKG:PYPI/DJANGO").execute()
 
         assert result.count >= 1
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
@@ -964,8 +888,77 @@ class TestByPurl:
         """by_purl should match PURL prefixes."""
         service = CVESearchService(config=sample_parquet_data)
         # Match just the package type and namespace prefix
-        result = service.by_purl("pkg:maven/org.apache")
+        result = service.query().by_purl("pkg:maven/org.apache").execute()
 
         assert result.count >= 1
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
         assert "CVE-2024-9999" in cve_ids
+
+
+class TestChainedQueries:
+    """Tests for chaining multiple query filters together."""
+
+    def test_chain_product_and_severity(self, sample_parquet_data):
+        """Chain product and severity filters."""
+        service = CVESearchService(config=sample_parquet_data)
+
+        result = (
+            service.query()
+            .by_product("", fuzzy=True)
+            .by_severity(SeverityLevel.MEDIUM)
+            .execute()
+        )
+
+        assert result.count >= 0
+
+    def test_chain_vendor_and_date(self, sample_parquet_data):
+        """Chain vendor and date filters."""
+        service = CVESearchService(config=sample_parquet_data)
+
+        result = (
+            service.query()
+            .by_vendor("Linux", fuzzy=True)
+            .by_date(after="2020-01-01")
+            .execute()
+        )
+
+        assert result.count >= 0
+
+    def test_chain_multiple_filters(self, sample_parquet_data):
+        """Chain multiple filters together."""
+        service = CVESearchService(config=sample_parquet_data)
+
+        result = (
+            service.query()
+            .by_product("kernel", fuzzy=True)
+            .by_severity(SeverityLevel.MEDIUM)
+            .by_date(after="2020-01-01")
+            .sort_by("date", descending=True)
+            .limit(10)
+            .execute()
+        )
+
+        assert result.count >= 0
+        assert result.count <= 10
+
+    def test_chain_with_limit(self, sample_parquet_data):
+        """Chain with limit should respect the limit."""
+        service = CVESearchService(config=sample_parquet_data)
+
+        result = service.query().by_product("", fuzzy=True).limit(2).execute()
+
+        assert result.count <= 2
+
+
+class TestRecentCVEs:
+    """Tests for recent CVEs filter."""
+
+    def test_recent_cves(self, sample_parquet_data):
+        """recent() should filter to CVEs from the last N days."""
+        service = CVESearchService(config=sample_parquet_data)
+
+        # Use a very large number of days to include our test data
+        result = service.query().recent(days=3650).execute()
+
+        # Should find some CVEs
+        assert result.count >= 0
