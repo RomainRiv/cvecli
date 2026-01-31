@@ -17,7 +17,7 @@ AI agent guidelines for the cvecli repository.
 
 ```
 src/cvecli/
-├── cli/          # Typer CLI commands
+├── cli/          # Typer CLI (commands/, formatters/)
 ├── core/         # Config
 ├── models/       # Pydantic models
 └── services/     # Business logic (search, downloader, extractor, embeddings)
@@ -31,6 +31,7 @@ just test          # Run tests
 just format        # Format with Black
 just lint          # Lint with ruff
 just ty            # Type check with ty
+just check         # All checks (format, lint, ty) without tests
 just ci            # Full CI pipeline
 ```
 
@@ -47,7 +48,8 @@ just ci            # Full CI pipeline
 - Data uses Polars, not pandas
 - `cve_model.py` is auto-generated (excluded from Black)
 - Semantic search requires optional `[semantic]` extras
-- Tests use fixtures in `conftest.py`, don't modify `data/`
+- Test fixtures are in `tests/fixtures/` (generated via `just test`)
+- Config respects `CVE_DATA_DIR` and `CVE_DOWNLOAD_DIR` env vars
 
 ## Guidelines
 
