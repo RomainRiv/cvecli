@@ -27,36 +27,25 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "polars>=1.31.0",
-    "pydantic>=2.11.7",
-    "requests>=2.32.3",
-    "typer>=0.16.0",
-    "rich>=14.0.0",
-    "types-requests>=2.32.4.20250913",
+    "polars>=1.31.0,<2",
+    "pydantic>=2.11.7,<3",
+    "requests>=2.32.3,<3",
+    "typer>=0.16.0,<1",
+    "rich>=14.0.0,<15",
 ]
 
 [project.optional-dependencies]
 semantic = [
-    "fastembed>=0.5.0",
-    "numpy>=2.0.0",
+    "fastembed>=0.5.0,<1",
+    "numpy>=2.0.0,<3",
 ]
 
 notebook = [
-    "plotly>=6.0.0",
-    "jupyter>=1.0.0",
-    "ipykernel>=6.29.0",
+    "plotly>=6.0.0,<7",
+    "jupyter>=1.0.0,<2",
+    "ipykernel>=6.29.0,<7",
 ]
 
-dev = [
-    "pytest>=8.0.0",
-    "pytest-cov>=4.1.0",
-    "types-requests>=2.32.4.20250611",
-    "black>=24.0.0",
-    "mypy>=1.8.0",
-    "fastembed>=0.5.0",
-    "numpy>=2.0.0",
-    "datamodel-code-generator>=0.53.0",
-]
 
 [project.scripts]
 cvecli = "cvecli.cli.main:main"
@@ -80,8 +69,16 @@ path = "src/cvecli/__init__.py"
 
 [dependency-groups]
 dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "black>=24.0.0",
     "ruff>=0.14.14",
+    "mypy>=1.8.0",
     "ty>=0.0.14",
+    "types-requests>=2.32.4.20250913",
+    "fastembed>=0.5.0,<1",
+    "numpy>=2.0.0,<3",
+    "datamodel-code-generator>=0.53.0",
     "mkdocs>=1.6.0",
     "mkdocs-material>=9.5.0",
     "mkdocstrings[python]>=0.27.0",
@@ -109,7 +106,7 @@ markers = [
 
 [tool.black]
 line-length = 88
-target-version = ['py310', 'py311', 'py312']
+target-version = ['py310', 'py311', 'py312', 'py313']
 include = '\.pyi?$'
 exclude = '''
 (
