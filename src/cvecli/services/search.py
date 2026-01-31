@@ -42,12 +42,14 @@ from cvecli.services.version import is_version_affected
 from cvecli.models.query_filters import (
     QueryFilter,
     IdFilter,
+    ExcludeIdsFilter,
     ProductFilter,
     VendorFilter,
     CweFilter,
     SeverityFilter,
     CvssFilter,
     DateFilter,
+    YearFilter,
     StateFilter,
     CpeFilter,
     PurlFilter,
@@ -55,6 +57,9 @@ from cvecli.models.query_filters import (
     KevFilter,
     RecentFilter,
     TextSearchFilter,
+    DescriptionFilter,
+    HasMetricsFilter,
+    ReferenceTagFilter,
 )
 
 # Import from constants module for centralization
@@ -277,10 +282,24 @@ class CVEQuery:
         q._filters.append(IdFilter(cve_id=cve_id))
         return q
 
+    def exclude_ids(self, cve_ids: List[str]) -> CVEQuery:
+        """Exclude specific CVE IDs from results.
+
+        Useful for filtering out known false positives or already-processed CVEs.
+
+        Args:
+            cve_ids: List of CVE identifiers to exclude.
+
+        Returns:
+            New CVEQuery with the filter applied.
+        """
+        q = self._copy()
+        q._filters.append(ExcludeIdsFilter(cve_ids=tuple(cve_ids)))
+        return q
+
     def by_product(
         self,
         product: str,
-        vendor: Optional[str] = None,
         fuzzy: bool = True,
         exact: bool = False,
     ) -> CVEQuery:
@@ -288,7 +307,6 @@ class CVEQuery:
 
         Args:
             product: Product name to search for.
-            vendor: Optional vendor name to filter by.
             fuzzy: If True, use case-insensitive substring matching.
             exact: If True, use literal string matching (no regex).
 
@@ -299,7 +317,6 @@ class CVEQuery:
         q._filters.append(
             ProductFilter(
                 product=product,
-                vendor=vendor,
                 fuzzy=fuzzy,
                 exact=exact,
             )
@@ -399,6 +416,25 @@ class CVEQuery:
         q._filters.append(DateFilter(after=after, before=before))
         return q
 
+    def by_year(self, *years: int) -> CVEQuery:
+        """Filter by CVE year(s).
+
+        Filters CVEs based on the year in their CVE ID (e.g., CVE-2024-xxxx).
+
+        Args:
+            *years: One or more years to include (e.g., 2023, 2024).
+
+        Returns:
+            New CVEQuery with the filter applied.
+
+        Example:
+            # Get CVEs from 2023 and 2024
+            query.by_year(2023, 2024)
+        """
+        q = self._copy()
+        q._filters.append(YearFilter(years=tuple(years)))
+        return q
+
     def by_state(self, state: str) -> CVEQuery:
         """Filter by CVE state.
 
@@ -461,30 +497,25 @@ class CVEQuery:
         )
         return q
 
-    def by_version(
-        self,
-        version: str,
-        vendor: Optional[str] = None,
-        product: Optional[str] = None,
-    ) -> CVEQuery:
+    def by_version(self, version: str) -> CVEQuery:
         """Filter to only CVEs affecting a specific version.
+
+        This filter checks version ranges in the CVE data to determine
+        if the specified version is affected. For best results, chain
+        with by_product() or by_vendor() to narrow down the scope.
 
         Args:
             version: Version string to check.
-            vendor: Optional vendor for disambiguation.
-            product: Optional product for disambiguation.
 
         Returns:
             New CVEQuery with the filter applied.
+
+        Example:
+            # Find CVEs affecting OpenSSL version 3.0.1
+            query.by_product("openssl").by_version("3.0.1")
         """
         q = self._copy()
-        q._filters.append(
-            VersionFilter(
-                version=version,
-                vendor=vendor,
-                product=product,
-            )
-        )
+        q._filters.append(VersionFilter(version=version))
         return q
 
     def by_kev(self) -> CVEQuery:
@@ -539,14 +570,12 @@ class CVEQuery:
         self,
         query: str,
         mode: SearchMode = SearchMode.FUZZY,
-        vendor: Optional[str] = None,
     ) -> CVEQuery:
         """Search by text in product/vendor fields.
 
         Args:
             query: Search query string.
             mode: Search mode (strict, regex, fuzzy).
-            vendor: Optional vendor filter.
 
         Returns:
             New CVEQuery with the filter applied.
@@ -556,9 +585,80 @@ class CVEQuery:
             TextSearchFilter(
                 query=query,
                 mode=mode,
-                vendor=vendor,
             )
         )
+        return q
+
+    def by_description(
+        self,
+        query: str,
+        mode: SearchMode = SearchMode.FUZZY,
+        lang: str = "en",
+    ) -> CVEQuery:
+        """Search within CVE descriptions.
+
+        Args:
+            query: Search query string.
+            mode: Search mode (strict, regex, fuzzy).
+            lang: Language code to search in (default: "en").
+
+        Returns:
+            New CVEQuery with the filter applied.
+
+        Example:
+            # Find CVEs mentioning "buffer overflow"
+            query.by_description("buffer overflow")
+        """
+        q = self._copy()
+        q._filters.append(
+            DescriptionFilter(
+                query=query,
+                mode=mode,
+                lang=lang,
+            )
+        )
+        return q
+
+    def with_metrics(self, has_metrics: bool = True) -> CVEQuery:
+        """Filter to CVEs that have (or don't have) CVSS metrics.
+
+        Args:
+            has_metrics: If True, include only CVEs with metrics.
+                         If False, include only CVEs without metrics.
+
+        Returns:
+            New CVEQuery with the filter applied.
+
+        Example:
+            # Find CVEs without severity scores
+            query.with_metrics(False)
+        """
+        q = self._copy()
+        q._filters.append(HasMetricsFilter(has_metrics=has_metrics))
+        return q
+
+    def by_reference_tag(self, *tags: str, match_all: bool = False) -> CVEQuery:
+        """Filter by reference tag.
+
+        CVE references are tagged with types like "Exploit", "Patch",
+        "Vendor Advisory", "Third Party Advisory", etc.
+
+        Args:
+            *tags: One or more tags to match (e.g., "Exploit", "Patch").
+            match_all: If True, CVE must have all tags. If False, any tag matches.
+
+        Returns:
+            New CVEQuery with the filter applied.
+
+        Example:
+            # Find CVEs with known exploits
+            query.by_reference_tag("Exploit")
+
+            # Find CVEs with both exploit and patch available
+            query.by_reference_tag("Exploit", "Patch", match_all=True)
+        """
+        q = self._copy()
+        q._filters.append(ReferenceTagFilter(tags=tuple(tags), match_all=match_all))
         return q
 
     def sort_by(self, field: str, descending: bool = True) -> CVEQuery:
@@ -778,13 +878,14 @@ class CVESearchService:
                     result_cves, cve_ids = self._apply_id_filter(
                         result_cves, cve_id, cve_ids
                     )
-                case ProductFilter(
-                    product=product, vendor=vendor, fuzzy=fuzzy, exact=exact
-                ):
+                case ExcludeIdsFilter(cve_ids=exclude_ids):
+                    result_cves, cve_ids = self._apply_exclude_ids_filter(
+                        result_cves, exclude_ids, cve_ids
+                    )
+                case ProductFilter(product=product, fuzzy=fuzzy, exact=exact):
                     result_cves, cve_ids = self._apply_product_filter(
                         result_cves,
                         product,
-                        vendor,
                         fuzzy,
                         exact,
                         cve_ids,
@@ -813,6 +914,10 @@ class CVESearchService:
                     result_cves, cve_ids = self._apply_date_filter(
                         result_cves, after, before, cve_ids
                     )
+                case YearFilter(years=years):
+                    result_cves, cve_ids = self._apply_year_filter(
+                        result_cves, years, cve_ids
+                    )
                 case StateFilter(state=state):
                     result_cves, cve_ids = self._apply_state_filter(
                         result_cves, state, cve_ids
@@ -832,12 +937,10 @@ class CVESearchService:
                         fuzzy,
                         cve_ids,
                     )
-                case VersionFilter(version=version, vendor=vendor, product=product):
+                case VersionFilter(version=version):
                     result_cves, cve_ids = self._apply_version_filter(
                         result_cves,
                         version,
-                        vendor,
-                        product,
                         cve_ids,
                     )
                 case KevFilter():
@@ -846,13 +949,28 @@ class CVESearchService:
                     result_cves, cve_ids = self._apply_recent_filter(
                         result_cves, days, cve_ids
                     )
-                case TextSearchFilter(query=text_query, mode=mode, vendor=vendor):
+                case TextSearchFilter(query=text_query, mode=mode):
                     result_cves, cve_ids = self._apply_text_search_filter(
                         result_cves,
                         text_query,
                         mode,
-                        vendor,
                         cve_ids,
+                    )
+                case DescriptionFilter(query=desc_query, mode=mode, lang=lang):
+                    result_cves, cve_ids = self._apply_description_filter(
+                        result_cves,
+                        desc_query,
+                        mode,
+                        lang,
+                        cve_ids,
+                    )
+                case HasMetricsFilter(has_metrics=has_metrics):
+                    result_cves, cve_ids = self._apply_has_metrics_filter(
+                        result_cves, has_metrics, cve_ids
+                    )
+                case ReferenceTagFilter(tags=tags, match_all=match_all):
+                    result_cves, cve_ids = self._apply_reference_tag_filter(
+                        result_cves, tags, match_all, cve_ids
                     )
 
         # Apply sorting
@@ -893,11 +1011,28 @@ class CVESearchService:
         result = cves.filter(pl.col("cve_id") == cve_id)
         return result, result.get_column("cve_id").to_list()
 
+    def _apply_exclude_ids_filter(
+        self,
+        cves: pl.DataFrame,
+        cve_ids_to_exclude: tuple[str, ...],
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply exclude CVE IDs filter."""
+        # Normalize IDs
+        normalized_ids = set()
+        for cve_id in cve_ids_to_exclude:
+            cve_id = cve_id.upper()
+            if not cve_id.startswith("CVE-"):
+                cve_id = f"CVE-{cve_id}"
+            normalized_ids.add(cve_id)
+
+        result = cves.filter(~pl.col("cve_id").is_in(normalized_ids))
+        return result, result.get_column("cve_id").to_list()
+
     def _apply_product_filter(
         self,
         cves: pl.DataFrame,
         product: str,
-        vendor: Optional[str],
         fuzzy: bool,
         exact: bool,
         current_ids: Optional[List[str]],
@@ -922,21 +1057,6 @@ class CVESearchService:
             )
         else:
             product_filter = pl.col("product") == product
-
-        if vendor:
-            if fuzzy:
-                if exact:
-                    search_vendor = vendor.lower()
-                else:
-                    search_vendor = re.escape(vendor.lower())
-                vendor_filter = (
-                    pl.col("vendor")
-                    .str.to_lowercase()
-                    .str.contains(search_vendor, literal=exact)
-                )
-            else:
-                vendor_filter = pl.col("vendor") == vendor
-            product_filter = product_filter & vendor_filter
 
         matching = products_df.filter(product_filter)
         matching_ids = matching.get_column("cve_id").unique().to_list()
@@ -1278,8 +1398,6 @@ class CVESearchService:
         self,
         cves: pl.DataFrame,
         version: str,
-        vendor: Optional[str],
-        product: Optional[str],
         current_ids: Optional[List[str]],
     ) -> tuple[pl.DataFrame, List[str]]:
         """Apply version filter."""
@@ -1288,7 +1406,7 @@ class CVESearchService:
 
         related = self._get_related_data(current_ids)
         search_result = SearchResult(cves, **related)
-        filtered = self._filter_by_version_impl(search_result, version, vendor, product)
+        filtered = self._filter_by_version_impl(search_result, version)
 
         return filtered.cves, filtered.cves.get_column("cve_id").to_list()
 
@@ -1331,7 +1449,6 @@ class CVESearchService:
         cves: pl.DataFrame,
         query: str,
         mode: SearchMode,
-        vendor: Optional[str],
         current_ids: Optional[List[str]],
     ) -> tuple[pl.DataFrame, List[str]]:
         """Apply text search filter on products."""
@@ -1364,24 +1481,6 @@ class CVESearchService:
                 .str.contains(query_escaped, literal=False)
             )
 
-        if vendor:
-            if mode == SearchMode.STRICT:
-                vendor_filter = pl.col("vendor").str.to_lowercase() == vendor.lower()
-            elif mode == SearchMode.REGEX:
-                vendor_filter = (
-                    pl.col("vendor")
-                    .str.to_lowercase()
-                    .str.contains(vendor.lower(), literal=False)
-                )
-            else:
-                vendor_escaped = re.escape(vendor.lower())
-                vendor_filter = (
-                    pl.col("vendor")
-                    .str.to_lowercase()
-                    .str.contains(vendor_escaped, literal=False)
-                )
-            product_filter = product_filter & vendor_filter
-
         matching = products_df.filter(product_filter)
         matching_ids = matching.get_column("cve_id").unique().to_list()
 
@@ -1403,6 +1502,156 @@ class CVESearchService:
                     .str.contains(query_escaped, literal=False)
                 )
             matching = products_df.filter(vendor_filter)
+            matching_ids = matching.get_column("cve_id").unique().to_list()
+
+        result = cves.filter(pl.col("cve_id").is_in(matching_ids))
+        return result, matching_ids
+
+    def _apply_year_filter(
+        self,
+        cves: pl.DataFrame,
+        years: tuple[int, ...],
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply year filter based on CVE ID."""
+        year_strs = {str(y) for y in years}
+
+        # Extract year from CVE ID (format: CVE-YYYY-NNNNN)
+        result = cves.filter(
+            pl.col("cve_id").str.extract(r"CVE-(\d{4})-", 1).is_in(year_strs)
+        )
+        return result, result.get_column("cve_id").to_list()
+
+    def _apply_description_filter(
+        self,
+        cves: pl.DataFrame,
+        query: str,
+        mode: SearchMode,
+        lang: str,
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply description search filter."""
+        if self._descriptions_df is None:
+            return pl.DataFrame(schema=cves.schema), []
+
+        descriptions_df = self._descriptions_df
+        if current_ids is not None:
+            descriptions_df = descriptions_df.filter(
+                pl.col("cve_id").is_in(set(current_ids))
+            )
+
+        # Filter by language
+        descriptions_df = descriptions_df.filter(pl.col("lang") == lang)
+
+        # Build filter based on mode
+        if mode == SearchMode.STRICT:
+            query_lower = query.lower()
+            desc_filter = pl.col("value").str.to_lowercase().str.contains(
+                query_lower, literal=True
+            )
+        elif mode == SearchMode.REGEX:
+            try:
+                re.compile(query, re.IGNORECASE)
+            except re.error as e:
+                raise ValueError(f"Invalid regex pattern: {e}")
+            desc_filter = (
+                pl.col("value")
+                .str.to_lowercase()
+                .str.contains(query.lower(), literal=False)
+            )
+        else:  # FUZZY
+            query_escaped = re.escape(query.lower())
+            desc_filter = (
+                pl.col("value")
+                .str.to_lowercase()
+                .str.contains(query_escaped, literal=False)
+            )
+
+        matching = descriptions_df.filter(desc_filter)
+        matching_ids = matching.get_column("cve_id").unique().to_list()
+
+        result = cves.filter(pl.col("cve_id").is_in(matching_ids))
+        return result, matching_ids
+
+    def _apply_has_metrics_filter(
+        self,
+        cves: pl.DataFrame,
+        has_metrics: bool,
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply has metrics filter."""
+        if self._metrics_df is None:
+            if has_metrics:
+                return pl.DataFrame(schema=cves.schema), []
+            else:
+                return cves, cves.get_column("cve_id").to_list()
+
+        metrics_df = self._metrics_df
+        if current_ids is not None:
+            metrics_df = metrics_df.filter(pl.col("cve_id").is_in(set(current_ids)))
+
+        # Get CVEs with CVSS metrics
+        cves_with_metrics = (
+            metrics_df.filter(
+                pl.col("metric_type").str.starts_with("cvss")
+                & pl.col("base_score").is_not_null()
+            )
+            .get_column("cve_id")
+            .unique()
+            .to_list()
+        )
+        cves_with_metrics_set = set(cves_with_metrics)
+
+        if has_metrics:
+            result = cves.filter(pl.col("cve_id").is_in(cves_with_metrics_set))
+        else:
+            result = cves.filter(~pl.col("cve_id").is_in(cves_with_metrics_set))
+
+        return result, result.get_column("cve_id").to_list()
+
+    def _apply_reference_tag_filter(
+        self,
+        cves: pl.DataFrame,
+        tags: tuple[str, ...],
+        match_all: bool,
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply reference tag filter."""
+        if self._references_df is None:
+            return pl.DataFrame(schema=cves.schema), []
+
+        references_df = self._references_df
+        if current_ids is not None:
+            references_df = references_df.filter(
+                pl.col("cve_id").is_in(set(current_ids))
+            )
+
+        # Normalize tags for case-insensitive matching
+        tags_lower = {t.lower() for t in tags}
+
+        if match_all:
+            # CVE must have all specified tags
+            matching_ids: List[str] = []
+            for cve_id in references_df.get_column("cve_id").unique().to_list():
+                cve_refs = references_df.filter(pl.col("cve_id") == cve_id)
+                # Get all tags for this CVE (tags column contains comma-separated values)
+                cve_tags_raw = cve_refs.get_column("tags").to_list()
+                cve_tags: set[str] = set()
+                for tags_str in cve_tags_raw:
+                    if tags_str:
+                        cve_tags.update(t.strip().lower() for t in tags_str.split(","))
+
+                if tags_lower.issubset(cve_tags):
+                    matching_ids.append(cve_id)
+        else:
+            # CVE must have any of the specified tags
+            tag_pattern = "|".join(re.escape(t) for t in tags_lower)
+            matching = references_df.filter(
+                pl.col("tags")
+                .fill_null("")
+                .str.to_lowercase()
+                .str.contains(tag_pattern, literal=False)
+            )
             matching_ids = matching.get_column("cve_id").unique().to_list()
 
         result = cves.filter(pl.col("cve_id").is_in(matching_ids))

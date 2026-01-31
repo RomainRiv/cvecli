@@ -14,12 +14,14 @@ from cvecli.models.query_filters import (
     AnyFilter,
     # Filter classes
     IdFilter,
+    ExcludeIdsFilter,
     ProductFilter,
     VendorFilter,
     CweFilter,
     SeverityFilter,
     CvssFilter,
     DateFilter,
+    YearFilter,
     StateFilter,
     CpeFilter,
     PurlFilter,
@@ -27,6 +29,9 @@ from cvecli.models.query_filters import (
     KevFilter,
     RecentFilter,
     TextSearchFilter,
+    DescriptionFilter,
+    HasMetricsFilter,
+    ReferenceTagFilter,
 )
 from cvecli.models.parquet_models import (
     # Pydantic models
@@ -105,12 +110,14 @@ __all__ = [
     "FilterType",
     "AnyFilter",
     "IdFilter",
+    "ExcludeIdsFilter",
     "ProductFilter",
     "VendorFilter",
     "CweFilter",
     "SeverityFilter",
     "CvssFilter",
     "DateFilter",
+    "YearFilter",
     "StateFilter",
     "CpeFilter",
     "PurlFilter",
@@ -118,4 +125,7 @@ __all__ = [
     "KevFilter",
     "RecentFilter",
     "TextSearchFilter",
+    "DescriptionFilter",
+    "HasMetricsFilter",
+    "ReferenceTagFilter",
 ]

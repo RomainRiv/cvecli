@@ -154,10 +154,15 @@ class TestCVESearchService:
         assert result.count >= 1
 
     def test_by_product_with_vendor(self, sample_parquet_data):
-        """by_product should filter by vendor."""
+        """by_product chained with by_vendor should filter both."""
         service = CVESearchService(config=sample_parquet_data)
 
-        result = service.query().by_product("Linux Kernel", vendor="Linux").execute()
+        result = (
+            service.query()
+            .by_product("Linux Kernel")
+            .by_vendor("Linux")
+            .execute()
+        )
         assert result.count >= 1
 
     def test_by_product_not_found(self, sample_parquet_data):

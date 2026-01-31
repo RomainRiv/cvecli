@@ -12,7 +12,7 @@ Example:
     from cvecli.constants import SeverityLevel
 
     # Type-safe filter creation
-    product_filter = ProductFilter(product="linux", vendor="redhat")
+    product_filter = ProductFilter(product="linux")
     severity_filter = SeverityFilter(severity=SeverityLevel.CRITICAL)
 """
 
@@ -32,12 +32,14 @@ class FilterType(Enum):
     """
 
     ID = auto()
+    EXCLUDE_IDS = auto()
     PRODUCT = auto()
     VENDOR = auto()
     CWE = auto()
     SEVERITY = auto()
     CVSS = auto()
     DATE = auto()
+    YEAR = auto()
     STATE = auto()
     CPE = auto()
     PURL = auto()
@@ -45,6 +47,9 @@ class FilterType(Enum):
     KEV = auto()
     RECENT = auto()
     TEXT_SEARCH = auto()
+    DESCRIPTION = auto()
+    HAS_METRICS = auto()
+    REFERENCE_TAG = auto()
 
 
 @dataclass(frozen=True)
@@ -81,18 +86,33 @@ class IdFilter(QueryFilter):
 
 
 @dataclass(frozen=True)
+class ExcludeIdsFilter(QueryFilter):
+    """Exclude specific CVE IDs from results.
+
+    Useful for filtering out known false positives or already-processed CVEs.
+
+    Attributes:
+        cve_ids: List of CVE identifiers to exclude.
+    """
+
+    cve_ids: tuple[str, ...]
+
+    @property
+    def filter_type(self) -> FilterType:
+        return FilterType.EXCLUDE_IDS
+
+
+@dataclass(frozen=True)
 class ProductFilter(QueryFilter):
     """Filter by product name.
 
     Attributes:
         product: Product name to search for.
-        vendor: Optional vendor name to filter by.
         fuzzy: If True, use case-insensitive substring matching.
         exact: If True, use literal string matching (no regex).
     """
 
     product: str
-    vendor: Optional[str] = None
     fuzzy: bool = True
     exact: bool = False
 
@@ -185,6 +205,23 @@ class DateFilter(QueryFilter):
 
 
 @dataclass(frozen=True)
+class YearFilter(QueryFilter):
+    """Filter by CVE year(s).
+
+    Filters CVEs based on the year in their CVE ID (e.g., CVE-2024-xxxx).
+
+    Attributes:
+        years: Tuple of years to include.
+    """
+
+    years: tuple[int, ...]
+
+    @property
+    def filter_type(self) -> FilterType:
+        return FilterType.YEAR
+
+
+@dataclass(frozen=True)
 class StateFilter(QueryFilter):
     """Filter by CVE state.
 
@@ -239,15 +276,15 @@ class PurlFilter(QueryFilter):
 class VersionFilter(QueryFilter):
     """Filter to only CVEs affecting a specific version.
 
+    This filter checks version ranges in the CVE data to determine
+    if the specified version is affected. For best results, chain
+    with by_product() or by_vendor() to narrow down the scope.
+
     Attributes:
         version: Version string to check.
-        vendor: Optional vendor for disambiguation.
-        product: Optional product for disambiguation.
     """
 
     version: str
-    vendor: Optional[str] = None
-    product: Optional[str] = None
 
     @property
     def filter_type(self) -> FilterType:
@@ -285,27 +322,86 @@ class TextSearchFilter(QueryFilter):
     Attributes:
         query: Search query string.
         mode: Search mode (strict, regex, fuzzy).
-        vendor: Optional vendor filter.
     """
 
     query: str
     mode: SearchMode = SearchMode.FUZZY
-    vendor: Optional[str] = None
 
     @property
     def filter_type(self) -> FilterType:
         return FilterType.TEXT_SEARCH
 
 
+@dataclass(frozen=True)
+class DescriptionFilter(QueryFilter):
+    """Search within CVE descriptions.
+
+    Performs text search on CVE description content.
+
+    Attributes:
+        query: Search query string.
+        mode: Search mode (strict, regex, fuzzy).
+        lang: Language code to search in (default: "en").
+    """
+
+    query: str
+    mode: SearchMode = SearchMode.FUZZY
+    lang: str = "en"
+
+    @property
+    def filter_type(self) -> FilterType:
+        return FilterType.DESCRIPTION
+
+
+@dataclass(frozen=True)
+class HasMetricsFilter(QueryFilter):
+    """Filter to CVEs that have CVSS metrics.
+
+    Useful to exclude CVEs without severity scores.
+
+    Attributes:
+        has_metrics: If True, include only CVEs with metrics.
+                     If False, include only CVEs without metrics.
+    """
+
+    has_metrics: bool = True
+
+    @property
+    def filter_type(self) -> FilterType:
+        return FilterType.HAS_METRICS
+
+
+@dataclass(frozen=True)
+class ReferenceTagFilter(QueryFilter):
+    """Filter by reference tag.
+
+    CVE references are tagged with types like "Exploit", "Patch",
+    "Vendor Advisory", "Third Party Advisory", etc.
+
+    Attributes:
+        tags: Tuple of tags to match (e.g., ("Exploit", "Patch")).
+        match_all: If True, CVE must have all tags. If False, any tag matches.
+    """
+
+    tags: tuple[str, ...]
+    match_all: bool = False
+
+    @property
+    def filter_type(self) -> FilterType:
+        return FilterType.REFERENCE_TAG
+
+
 # Type alias for any filter
 AnyFilter = (
     IdFilter
+    | ExcludeIdsFilter
     | ProductFilter
     | VendorFilter
     | CweFilter
     | SeverityFilter
     | CvssFilter
     | DateFilter
+    | YearFilter
     | StateFilter
     | CpeFilter
     | PurlFilter
@@ -313,4 +409,7 @@ AnyFilter = (
     | KevFilter
     | RecentFilter
     | TextSearchFilter
+    | DescriptionFilter
+    | HasMetricsFilter
+    | ReferenceTagFilter
 )

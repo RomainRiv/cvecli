@@ -30,7 +30,7 @@ def main() -> None:
     print("Searching for Django CVEs to export...")
     print("=" * 70)
 
-    results = search.query().by_product("django", vendor="djangoproject").execute()
+    results = search.query().by_product("django").by_vendor("djangoproject").execute()
     print(f"Found {results.count} CVEs\n")
 
     if results.count == 0:

@@ -318,7 +318,9 @@ def register_search_command(app: typer.Typer) -> None:
             elif query.upper().startswith("CWE"):
                 q = q.by_cwe(query)
             else:
-                q = q.text_search(query, search_mode, vendor)
+                q = q.text_search(query, search_mode)
+                if vendor:
+                    q = q.by_vendor(vendor, fuzzy=True, exact=True)
         # If no query but filters are provided, that's okay
         elif not (product or vendor or cwe or state or kev):
             console.print(
@@ -328,7 +330,9 @@ def register_search_command(app: typer.Typer) -> None:
 
         # Apply additional filters
         if product:
-            q = q.by_product(product, vendor=vendor, fuzzy=True, exact=True)
+            q = q.by_product(product, fuzzy=True, exact=True)
+            if vendor:
+                q = q.by_vendor(vendor, fuzzy=True, exact=True)
         elif vendor and not (query and not query.upper().startswith("CWE")):
             q = q.by_vendor(vendor, fuzzy=True, exact=True)
 
@@ -365,7 +369,11 @@ def register_search_command(app: typer.Typer) -> None:
             q = q.by_cvss(min_score=cvss_min, max_score=cvss_max)
 
         if version and not purl and not cpe:
-            q = q.by_version(version, vendor=vendor, product=product)
+            q = q.by_version(version)
+            if vendor:
+                q = q.by_vendor(vendor)
+            if product:
+                q = q.by_product(product, fuzzy=True, exact=True)
 
         if sort:
             order_lower = order.lower()
