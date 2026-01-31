@@ -1,11 +1,31 @@
 [project]
 name = "cvecli"
-version = "0.1.0"
+dynamic = ["version"]
 description = "CLI tool for downloading, extracting, and searching CVE data"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
-keywords = ["cve", "security", "vulnerability", "cli"]
+authors = [
+    { name = "Romain RIVIERE" }
+]
+keywords = ["cve", "security", "vulnerability", "cli", "nvd", "cybersecurity", "cpe", "cwe"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Utilities",
+    "Typing :: Typed",
+]
 dependencies = [
     "polars>=1.31.0",
     "pydantic>=2.11.7",
@@ -41,12 +61,22 @@ dev = [
 [project.scripts]
 cvecli = "cvecli.cli.main:main"
 
+[project.urls]
+Homepage = "https://github.com/RomainRiv/cvecli"
+Documentation = "https://romainriv.github.io/cvecli/"
+Repository = "https://github.com/RomainRiv/cvecli"
+Issues = "https://github.com/RomainRiv/cvecli/issues"
+Changelog = "https://github.com/RomainRiv/cvecli/releases"
+
 [tool.uv]
 package = true
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/cvecli/__init__.py"
 
 [dependency-groups]
 dev = [
