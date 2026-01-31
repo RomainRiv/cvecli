@@ -2,6 +2,10 @@
 
 A CLI tool and Python library for downloading, extracting, and searching CVE (Common Vulnerabilities and Exposures) data.
 
+!!! info "Documentation"
+    You're viewing the official documentation at [romainriv.github.io/cvecli](https://romainriv.github.io/cvecli/).
+    For the source code, visit the [GitHub repository](https://github.com/RomainRiv/cvecli).
+
 ## Features
 
 - **Fast CVE Database**: Downloads and stores CVE data in optimized Parquet format using Polars

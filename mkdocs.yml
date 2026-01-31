@@ -1,7 +1,7 @@
 site_name: cvecli
 site_description: CLI tool and Python library for downloading, extracting, and searching CVE data
 site_author: cvecli contributors
-site_url: https://github.com/RomainRiv/cvecli
+site_url: https://romainriv.github.io/cvecli/
 
 repo_url: https://github.com/RomainRiv/cvecli
 repo_name: cvecli
