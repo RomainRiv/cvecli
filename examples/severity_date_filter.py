@@ -58,7 +58,7 @@ def main() -> None:
     # Search for critical Linux kernel CVEs using chained query
     critical_linux = (
         search.query()
-        .by_product("linux", vendor="linux_kernel")
+        .by_product("linux").by_vendor("linux_kernel")
         .by_severity(SeverityLevel.CRITICAL)
         .execute()
     )

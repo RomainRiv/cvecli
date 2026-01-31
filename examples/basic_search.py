@@ -22,7 +22,7 @@ def main() -> None:
     print("Searching for CVEs affecting 'apache http_server'...")
     print("=" * 60)
 
-    results = search.query().by_product("http_server", vendor="apache").execute()
+    results = search.query().by_product("http_server").by_vendor("apache").execute()
     print(f"Found {results.count} CVEs\n")
 
     # Show first 5 results
