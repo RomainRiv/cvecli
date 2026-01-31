@@ -2,6 +2,8 @@
 
 A CLI tool for downloading, extracting, and searching CVE (Common Vulnerabilities and Exposures) data.
 
+📖 **[Full Documentation](https://romainriv.github.io/cvecli/)**
+
 ## Features
 
 - **Database Management**: Fetch pre-built parquet files or build locally from JSON
