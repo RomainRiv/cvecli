@@ -40,6 +40,9 @@ jobs:
       run: just typecheck
       continue-on-error: true
 
+    - name: Generate test fixtures
+      run: uv run python tests/fixtures/generate_fixtures.py
+
     - name: Run tests
       run: just test-cov
 
