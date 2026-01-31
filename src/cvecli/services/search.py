@@ -1,16 +1,35 @@
 """CVE search service.
 
-This service provides search capabilities over the normalized CVE parquet files.
-It supports searching by CVE ID, product, vendor, CWE, severity, date range,
-CPE (Common Platform Enumeration), version ranges, and semantic similarity using embeddings.
+This service provides a fluent, chainable API for searching CVE data.
+All searches are composable - you can chain filters in any order.
 
-Search Modes:
-- strict: Exact case-insensitive match
-- regex: Regular expression pattern matching
-- fuzzy: Case-insensitive substring matching (default)
-- semantic: Natural language similarity search using embeddings
+Example usage:
+    from cvecli.services.search import CVESearchService
+    from cvecli.constants import SeverityLevel
+
+    search = CVESearchService()
+
+    # Chain filters in any order
+    results = (
+        search.query()
+        .by_product("linux")
+        .by_severity(SeverityLevel.CRITICAL)
+        .by_date(after="2024-01-01")
+        .sort_by("cvss", descending=True)
+        .limit(100)
+        .execute()
+    )
+
+    # Simple lookups
+    result = search.query().by_id("CVE-2024-1234").execute()
+
+    # Semantic search
+    results = search.query().semantic("memory corruption").execute()
 """
 
+from __future__ import annotations
+
+import json as json_module
 import re
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
@@ -31,7 +50,20 @@ from cvecli.constants import (
 
 
 class SearchResult:
-    """Container for search results with metadata."""
+    """Container for search results with metadata and chainable filter methods.
+
+    SearchResult is immutable - all filter methods return new SearchResult instances.
+    This allows composable, chainable queries in any order.
+
+    Example:
+        result = (
+            search.query()
+            .by_product("linux")
+            .by_severity(SeverityLevel.CRITICAL)
+            .execute()
+        )
+        print(f"Found {result.count} CVEs")
+    """
 
     def __init__(
         self,
@@ -150,26 +182,430 @@ class SearchResult:
             else:
                 result["none"] += 1
 
-        # Count CVEs without any score
+        # Count CVEs without scores as unknown
         result["unknown"] += len(cve_ids - cves_with_scores)
 
         return result
 
-    def _get_year_distribution(self) -> dict[str, int]:
+    def _get_year_distribution(self) -> dict:
         """Get count of CVEs by year."""
-        result: dict[str, int] = {}
+        year_counts: dict[str, int] = {}
+
         for row in self.cves.iter_rows(named=True):
             cve_id = row.get("cve_id", "")
             if cve_id.startswith("CVE-"):
                 parts = cve_id.split("-")
                 if len(parts) >= 2:
                     year = parts[1]
-                    result[year] = result.get(year, 0) + 1
-        return dict(sorted(result.items()))
+                    year_counts[year] = year_counts.get(year, 0) + 1
+
+        return year_counts
+
+
+class CVEQuery:
+    """Fluent query builder for CVE searches.
+
+    CVEQuery provides a chainable API for building complex CVE queries.
+    All filter methods return a new CVEQuery instance, making queries composable.
+
+    Example:
+        query = (
+            CVEQuery(service)
+            .by_product("linux")
+            .by_severity(SeverityLevel.CRITICAL)
+            .by_date(after="2024-01-01")
+            .sort_by("cvss")
+            .limit(100)
+        )
+        results = query.execute()
+    """
+
+    def __init__(self, service: CVESearchService):
+        """Initialize a query builder.
+
+        Args:
+            service: The CVESearchService instance to execute queries against.
+        """
+        self._service = service
+        self._filters: List[dict] = []
+        self._sort_field: Optional[str] = None
+        self._sort_descending: bool = True
+        self._limit_count: Optional[int] = None
+        self._semantic_query: Optional[str] = None
+        self._semantic_top_k: int = 100
+        self._semantic_min_similarity: float = 0.3
+
+    def _copy(self) -> CVEQuery:
+        """Create a copy of this query."""
+        new_query = CVEQuery(self._service)
+        new_query._filters = self._filters.copy()
+        new_query._sort_field = self._sort_field
+        new_query._sort_descending = self._sort_descending
+        new_query._limit_count = self._limit_count
+        new_query._semantic_query = self._semantic_query
+        new_query._semantic_top_k = self._semantic_top_k
+        new_query._semantic_min_similarity = self._semantic_min_similarity
+        return new_query
+
+    def by_id(self, cve_id: str) -> CVEQuery:
+        """Filter by specific CVE ID.
+
+        Args:
+            cve_id: CVE identifier (e.g., "CVE-2024-1234" or "2024-1234").
+
+        Returns:
+            New CVEQuery with the filter applied.
+        """
+        q = self._copy()
+        q._filters.append({"type": "id", "cve_id": cve_id})
+        return q
+
+    def by_product(
+        self,
+        product: str,
+        vendor: Optional[str] = None,
+        fuzzy: bool = True,
+        exact: bool = False,
+    ) -> CVEQuery:
+        """Filter by product name.
+
+        Args:
+            product: Product name to search for.
+            vendor: Optional vendor name to filter by.
+            fuzzy: If True, use case-insensitive substring matching.
+            exact: If True, use literal string matching (no regex).
+
+        Returns:
+            New CVEQuery with the filter applied.
+        """
+        q = self._copy()
+        q._filters.append(
+            {
+                "type": "product",
+                "product": product,
+                "vendor": vendor,
+                "fuzzy": fuzzy,
+                "exact": exact,
+            }
+        )
+        return q
+
+    def by_vendor(
+        self,
+        vendor: str,
+        fuzzy: bool = True,
+        exact: bool = False,
+    ) -> CVEQuery:
+        """Filter by vendor name.
+
+        Args:
+            vendor: Vendor name to search for.
+            fuzzy: If True, use case-insensitive substring matching.
+            exact: If True, use literal string matching (no regex).
+
+        Returns:
+            New CVEQuery with the filter applied.
+        """
+        q = self._copy()
+        q._filters.append(
+            {
+                "type": "vendor",
+                "vendor": vendor,
+                "fuzzy": fuzzy,
+                "exact": exact,
+            }
+        )
+        return q
+
+    def by_cwe(self, cwe_id: str) -> CVEQuery:
+        """Filter by CWE identifier.
+
+        Args:
+            cwe_id: CWE identifier (e.g., "CWE-79" or "79").
+
+        Returns:
+            New CVEQuery with the filter applied.
+        """
+        q = self._copy()
+        q._filters.append({"type": "cwe", "cwe_id": cwe_id})
+        return q
+
+    def by_severity(self, severity: SeverityLevel) -> CVEQuery:
+        """Filter by severity level.
+
+        Args:
+            severity: Severity level (none, low, medium, high, critical).
+
+        Returns:
+            New CVEQuery with the filter applied.
+        """
+        q = self._copy()
+        q._filters.append({"type": "severity", "severity": severity})
+        return q
+
+    def by_cvss(
+        self,
+        min_score: Optional[float] = None,
+        max_score: Optional[float] = None,
+    ) -> CVEQuery:
+        """Filter by CVSS score range.
+
+        Args:
+            min_score: Minimum CVSS score (inclusive).
+            max_score: Maximum CVSS score (inclusive).
+
+        Returns:
+            New CVEQuery with the filter applied.
+        """
+        q = self._copy()
+        q._filters.append(
+            {
+                "type": "cvss",
+                "min_score": min_score,
+                "max_score": max_score,
+            }
+        )
+        return q
+
+    def by_date(
+        self,
+        after: Optional[str] = None,
+        before: Optional[str] = None,
+    ) -> CVEQuery:
+        """Filter by publication date range.
+
+        Args:
+            after: Only include CVEs published after this date (YYYY-MM-DD).
+            before: Only include CVEs published before this date (YYYY-MM-DD).
+
+        Returns:
+            New CVEQuery with the filter applied.
+        """
+        q = self._copy()
+        q._filters.append({"type": "date", "after": after, "before": before})
+        return q
+
+    def by_state(self, state: str) -> CVEQuery:
+        """Filter by CVE state.
+
+        Args:
+            state: CVE state (e.g., "PUBLISHED", "REJECTED").
+
+        Returns:
+            New CVEQuery with the filter applied.
+        """
+        q = self._copy()
+        q._filters.append({"type": "state", "state": state})
+        return q
+
+    def by_cpe(
+        self,
+        cpe_string: str,
+        check_version: Optional[str] = None,
+    ) -> CVEQuery:
+        """Filter by CPE (Common Platform Enumeration) string.
+
+        Args:
+            cpe_string: CPE string in 2.2 or 2.3 format.
+            check_version: Optional version to check for affected range.
+
+        Returns:
+            New CVEQuery with the filter applied.
+        """
+        q = self._copy()
+        q._filters.append(
+            {
+                "type": "cpe",
+                "cpe_string": cpe_string,
+                "check_version": check_version,
+            }
+        )
+        return q
+
+    def by_purl(
+        self,
+        purl: str,
+        check_version: Optional[str] = None,
+        fuzzy: bool = False,
+    ) -> CVEQuery:
+        """Filter by Package URL (PURL).
+
+        Args:
+            purl: Package URL string (e.g., "pkg:pypi/django").
+            check_version: Optional version to check for affected range.
+            fuzzy: If True, use substring matching.
+
+        Returns:
+            New CVEQuery with the filter applied.
+        """
+        q = self._copy()
+        q._filters.append(
+            {
+                "type": "purl",
+                "purl": purl,
+                "check_version": check_version,
+                "fuzzy": fuzzy,
+            }
+        )
+        return q
+
+    def by_version(
+        self,
+        version: str,
+        vendor: Optional[str] = None,
+        product: Optional[str] = None,
+    ) -> CVEQuery:
+        """Filter to only CVEs affecting a specific version.
+
+        Args:
+            version: Version string to check.
+            vendor: Optional vendor for disambiguation.
+            product: Optional product for disambiguation.
+
+        Returns:
+            New CVEQuery with the filter applied.
+        """
+        q = self._copy()
+        q._filters.append(
+            {
+                "type": "version",
+                "version": version,
+                "vendor": vendor,
+                "product": product,
+            }
+        )
+        return q
+
+    def by_kev(self) -> CVEQuery:
+        """Filter to only CVEs in CISA Known Exploited Vulnerabilities.
+
+        Returns:
+            New CVEQuery with the filter applied.
+        """
+        q = self._copy()
+        q._filters.append({"type": "kev"})
+        return q
+
+    def recent(self, days: int = 30) -> CVEQuery:
+        """Filter to recently published CVEs.
+
+        Args:
+            days: Number of days to look back.
+
+        Returns:
+            New CVEQuery with the filter applied.
+        """
+        q = self._copy()
+        q._filters.append({"type": "recent", "days": days})
+        return q
+
+    def semantic(
+        self,
+        query: str,
+        top_k: int = 100,
+        min_similarity: float = 0.3,
+    ) -> CVEQuery:
+        """Use semantic (natural language) search.
+
+        This uses embeddings to find CVEs with semantically similar
+        descriptions to the query.
+
+        Args:
+            query: Natural language search query.
+            top_k: Maximum number of results.
+            min_similarity: Minimum cosine similarity threshold (0-1).
+
+        Returns:
+            New CVEQuery with semantic search enabled.
+        """
+        q = self._copy()
+        q._semantic_query = query
+        q._semantic_top_k = top_k
+        q._semantic_min_similarity = min_similarity
+        return q
+
+    def text_search(
+        self,
+        query: str,
+        mode: SearchMode = SearchMode.FUZZY,
+        vendor: Optional[str] = None,
+    ) -> CVEQuery:
+        """Search by text in product/vendor fields.
+
+        Args:
+            query: Search query string.
+            mode: Search mode (strict, regex, fuzzy).
+            vendor: Optional vendor filter.
+
+        Returns:
+            New CVEQuery with the filter applied.
+        """
+        q = self._copy()
+        q._filters.append(
+            {
+                "type": "text_search",
+                "query": query,
+                "mode": mode,
+                "vendor": vendor,
+            }
+        )
+        return q
+
+    def sort_by(self, field: str, descending: bool = True) -> CVEQuery:
+        """Sort results by the specified field.
+
+        Args:
+            field: Field to sort by. Valid values: date, severity, cvss
+            descending: If True, sort in descending order.
+
+        Returns:
+            New CVEQuery with sorting applied.
+        """
+        q = self._copy()
+        q._sort_field = field
+        q._sort_descending = descending
+        return q
+
+    def limit(self, count: int) -> CVEQuery:
+        """Limit the number of results.
+
+        Args:
+            count: Maximum number of results to return.
+
+        Returns:
+            New CVEQuery with limit applied.
+        """
+        q = self._copy()
+        q._limit_count = count
+        return q
+
+    def execute(self) -> SearchResult:
+        """Execute the query and return results.
+
+        Returns:
+            SearchResult containing matching CVEs.
+        """
+        return self._service._execute_query(self)
 
 
 class CVESearchService:
-    """Service for searching CVE data."""
+    """Service for searching CVE data.
+
+    Provides a fluent API for building and executing CVE queries.
+    Use the `query()` method to start building a query.
+
+    Example:
+        service = CVESearchService()
+
+        # Chain filters in any order
+        results = (
+            service.query()
+            .by_product("linux")
+            .by_severity(SeverityLevel.CRITICAL)
+            .by_date(after="2024-01-01")
+            .execute()
+        )
+    """
 
     def __init__(self, config: Optional[Config] = None):
         """Initialize the search service.
@@ -187,13 +623,25 @@ class CVESearchService:
         self._references_df: Optional[pl.DataFrame] = None
         self._credits_df: Optional[pl.DataFrame] = None
 
+    def query(self) -> CVEQuery:
+        """Start building a new query.
+
+        Returns:
+            A new CVEQuery builder instance.
+
+        Example:
+            results = service.query().by_product("apache").execute()
+        """
+        return CVEQuery(self)
+
     def _load_data(self) -> None:
         """Load data from Parquet files if not already loaded."""
         if self._cves_df is None:
             cves_path = self.config.cves_parquet
             if not cves_path.exists():
                 raise FileNotFoundError(
-                    f"CVE data not found at {cves_path}. Run 'cvecli db update' or 'cvecli db build extract-parquet' first."
+                    f"CVE data not found at {cves_path}. "
+                    "Run 'cvecli db update' or 'cvecli db build extract-parquet' first."
                 )
             self._cves_df = pl.read_parquet(cves_path)
 
@@ -292,67 +740,166 @@ class CVESearchService:
 
         return result
 
-    def by_id(self, cve_id: str) -> SearchResult:
-        """Search for a specific CVE by ID.
+    def _execute_query(self, query: CVEQuery) -> SearchResult:
+        """Execute a query and return results.
 
-        Args:
-            cve_id: CVE identifier (e.g., "CVE-2024-1234").
-
-        Returns:
-            SearchResult with matching CVE(s).
+        This is the main query execution engine that applies all filters.
         """
         cves_df = self._ensure_cves_loaded()
 
+        # Start with all CVEs
+        result_cves = cves_df
+        cve_ids: Optional[List[str]] = None
+
+        # Handle semantic search specially - it determines the initial set
+        if query._semantic_query:
+            result = self._apply_semantic_search(
+                query._semantic_query,
+                query._semantic_top_k,
+                query._semantic_min_similarity,
+            )
+            result_cves = result.cves
+            cve_ids = result_cves.get_column("cve_id").to_list()
+
+        # Apply each filter in order
+        for f in query._filters:
+            filter_type = f["type"]
+
+            if filter_type == "id":
+                result_cves, cve_ids = self._apply_id_filter(
+                    result_cves, f["cve_id"], cve_ids
+                )
+            elif filter_type == "product":
+                result_cves, cve_ids = self._apply_product_filter(
+                    result_cves,
+                    f["product"],
+                    f.get("vendor"),
+                    f.get("fuzzy", True),
+                    f.get("exact", False),
+                    cve_ids,
+                )
+            elif filter_type == "vendor":
+                result_cves, cve_ids = self._apply_vendor_filter(
+                    result_cves,
+                    f["vendor"],
+                    f.get("fuzzy", True),
+                    f.get("exact", False),
+                    cve_ids,
+                )
+            elif filter_type == "cwe":
+                result_cves, cve_ids = self._apply_cwe_filter(
+                    result_cves, f["cwe_id"], cve_ids
+                )
+            elif filter_type == "severity":
+                result_cves, cve_ids = self._apply_severity_filter(
+                    result_cves, f["severity"], cve_ids
+                )
+            elif filter_type == "cvss":
+                result_cves, cve_ids = self._apply_cvss_filter(
+                    result_cves, f.get("min_score"), f.get("max_score"), cve_ids
+                )
+            elif filter_type == "date":
+                result_cves, cve_ids = self._apply_date_filter(
+                    result_cves, f.get("after"), f.get("before"), cve_ids
+                )
+            elif filter_type == "state":
+                result_cves, cve_ids = self._apply_state_filter(
+                    result_cves, f["state"], cve_ids
+                )
+            elif filter_type == "cpe":
+                result_cves, cve_ids = self._apply_cpe_filter(
+                    result_cves,
+                    f["cpe_string"],
+                    f.get("check_version"),
+                    cve_ids,
+                )
+            elif filter_type == "purl":
+                result_cves, cve_ids = self._apply_purl_filter(
+                    result_cves,
+                    f["purl"],
+                    f.get("check_version"),
+                    f.get("fuzzy", False),
+                    cve_ids,
+                )
+            elif filter_type == "version":
+                result_cves, cve_ids = self._apply_version_filter(
+                    result_cves,
+                    f["version"],
+                    f.get("vendor"),
+                    f.get("product"),
+                    cve_ids,
+                )
+            elif filter_type == "kev":
+                result_cves, cve_ids = self._apply_kev_filter(result_cves, cve_ids)
+            elif filter_type == "recent":
+                result_cves, cve_ids = self._apply_recent_filter(
+                    result_cves, f.get("days", 30), cve_ids
+                )
+            elif filter_type == "text_search":
+                result_cves, cve_ids = self._apply_text_search_filter(
+                    result_cves,
+                    f["query"],
+                    f.get("mode", SearchMode.FUZZY),
+                    f.get("vendor"),
+                    cve_ids,
+                )
+
+        # Apply sorting
+        if query._sort_field:
+            result_cves = self._apply_sorting(
+                result_cves, query._sort_field, query._sort_descending, cve_ids
+            )
+        else:
+            # Default sort by date
+            result_cves = result_cves.sort("date_published", descending=True)
+
+        # Apply limit
+        if query._limit_count:
+            result_cves = result_cves.head(query._limit_count)
+
+        # Get related data for final results
+        final_cve_ids = result_cves.get_column("cve_id").to_list()
+        related = self._get_related_data(final_cve_ids)
+
+        return SearchResult(result_cves, **related)
+
+    # =========================================================================
+    # Filter implementations
+    # =========================================================================
+
+    def _apply_id_filter(
+        self,
+        cves: pl.DataFrame,
+        cve_id: str,
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply CVE ID filter."""
         # Normalize ID
         cve_id = cve_id.upper()
         if not cve_id.startswith("CVE-"):
             cve_id = f"CVE-{cve_id}"
 
-        result = cves_df.filter(pl.col("cve_id") == cve_id)
-        result = result.sort("date_published", descending=True)
-        cve_ids = result.get_column("cve_id").to_list()
-        related = self._get_related_data(cve_ids)
+        result = cves.filter(pl.col("cve_id") == cve_id)
+        return result, result.get_column("cve_id").to_list()
 
-        return SearchResult(result, **related)
-
-    def all_cves(self) -> SearchResult:
-        """Get all CVEs in the database.
-
-        Returns:
-            SearchResult with all CVEs.
-        """
-        cves_df = self._ensure_cves_loaded()
-        result = cves_df.sort("date_published", descending=True)
-        # Don't load related data for all CVEs - too expensive
-        return SearchResult(result)
-
-    def by_product(
+    def _apply_product_filter(
         self,
+        cves: pl.DataFrame,
         product: str,
-        vendor: Optional[str] = None,
-        fuzzy: bool = True,
-        exact: bool = False,
-    ) -> SearchResult:
-        """Search CVEs affecting a product.
-
-        Args:
-            product: Product name to search for.
-            vendor: Optional vendor name to filter by.
-            fuzzy: If True, use case-insensitive substring matching.
-            exact: If True, use literal string matching (no regex).
-
-        Returns:
-            SearchResult with matching CVEs.
-        """
-        cves_df = self._ensure_cves_loaded()
-
+        vendor: Optional[str],
+        fuzzy: bool,
+        exact: bool,
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply product filter."""
         if self._products_df is None:
-            return SearchResult(pl.DataFrame(schema=cves_df.schema))
+            return pl.DataFrame(schema=cves.schema), []
 
-        # Filter products
+        products_df = self._products_df
+        if current_ids is not None:
+            products_df = products_df.filter(pl.col("cve_id").is_in(set(current_ids)))
+
         if fuzzy:
-            # When exact=True, use literal matching (no regex)
-            # When exact=False, use regex matching (escape special chars for safety)
             if exact:
                 search_product = product.lower()
             else:
@@ -380,37 +927,29 @@ class CVESearchService:
                 vendor_filter = pl.col("vendor") == vendor
             product_filter = product_filter & vendor_filter
 
-        matching_products = self._products_df.filter(product_filter)
-        cve_ids = matching_products.get_column("cve_id").unique().to_list()
+        matching = products_df.filter(product_filter)
+        matching_ids = matching.get_column("cve_id").unique().to_list()
 
-        # Get CVE details
-        result = cves_df.filter(pl.col("cve_id").is_in(cve_ids))
-        result = result.sort("date_published", descending=True)
-        related = self._get_related_data(cve_ids)
+        result = cves.filter(pl.col("cve_id").is_in(matching_ids))
+        return result, matching_ids
 
-        return SearchResult(result, **related)
-
-    def by_vendor(
-        self, vendor: str, fuzzy: bool = True, exact: bool = False
-    ) -> SearchResult:
-        """Search CVEs affecting products from a vendor.
-
-        Args:
-            vendor: Vendor name to search for.
-            fuzzy: If True, use case-insensitive substring matching.
-            exact: If True, use literal string matching (no regex).
-
-        Returns:
-            SearchResult with matching CVEs.
-        """
-        cves_df = self._ensure_cves_loaded()
-
+    def _apply_vendor_filter(
+        self,
+        cves: pl.DataFrame,
+        vendor: str,
+        fuzzy: bool,
+        exact: bool,
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply vendor filter."""
         if self._products_df is None:
-            return SearchResult(pl.DataFrame(schema=cves_df.schema))
+            return pl.DataFrame(schema=cves.schema), []
+
+        products_df = self._products_df
+        if current_ids is not None:
+            products_df = products_df.filter(pl.col("cve_id").is_in(set(current_ids)))
 
         if fuzzy:
-            # When exact=True, use literal matching (no regex)
-            # When exact=False, use regex matching (escape special chars for safety)
             if exact:
                 search_vendor = vendor.lower()
             else:
@@ -423,89 +962,169 @@ class CVESearchService:
         else:
             vendor_filter = pl.col("vendor") == vendor
 
-        matching_products = self._products_df.filter(vendor_filter)
-        cve_ids = matching_products.get_column("cve_id").unique().to_list()
+        matching = products_df.filter(vendor_filter)
+        matching_ids = matching.get_column("cve_id").unique().to_list()
 
-        result = cves_df.filter(pl.col("cve_id").is_in(cve_ids))
-        result = result.sort("date_published", descending=True)
-        related = self._get_related_data(cve_ids)
+        result = cves.filter(pl.col("cve_id").is_in(matching_ids))
+        return result, matching_ids
 
-        return SearchResult(result, **related)
-
-    def by_cwe(self, cwe_id: str) -> SearchResult:
-        """Search CVEs by CWE identifier.
-
-        Args:
-            cwe_id: CWE identifier (e.g., "CWE-79" or "79").
-
-        Returns:
-            SearchResult with matching CVEs.
-        """
-        cves_df = self._ensure_cves_loaded()
-
+    def _apply_cwe_filter(
+        self,
+        cves: pl.DataFrame,
+        cwe_id: str,
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply CWE filter."""
         if self._cwes_df is None:
-            return SearchResult(pl.DataFrame(schema=cves_df.schema))
+            return pl.DataFrame(schema=cves.schema), []
+
+        cwes_df = self._cwes_df
+        if current_ids is not None:
+            cwes_df = cwes_df.filter(pl.col("cve_id").is_in(set(current_ids)))
 
         # Normalize CWE ID
         cwe_id = cwe_id.upper()
         if not cwe_id.startswith("CWE-"):
             cwe_id = f"CWE-{cwe_id}"
 
-        matching_cwes = self._cwes_df.filter(pl.col("cwe_id") == cwe_id)
-        cve_ids = matching_cwes.get_column("cve_id").unique().to_list()
+        matching = cwes_df.filter(pl.col("cwe_id") == cwe_id)
+        matching_ids = matching.get_column("cve_id").unique().to_list()
 
-        result = cves_df.filter(pl.col("cve_id").is_in(cve_ids))
-        result = result.sort("date_published", descending=True)
-        related = self._get_related_data(cve_ids)
+        result = cves.filter(pl.col("cve_id").is_in(matching_ids))
+        return result, matching_ids
 
-        return SearchResult(result, **related)
-
-    def by_cpe(
+    def _apply_severity_filter(
         self,
+        cves: pl.DataFrame,
+        severity: SeverityLevel,
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply severity filter."""
+        if self._metrics_df is None:
+            return pl.DataFrame(schema=cves.schema), []
+
+        metrics_df = self._metrics_df
+        if current_ids is not None:
+            metrics_df = metrics_df.filter(pl.col("cve_id").is_in(set(current_ids)))
+
+        min_score, max_score = SEVERITY_THRESHOLDS[severity]
+
+        cvss_metrics = metrics_df.filter(
+            pl.col("metric_type").str.starts_with("cvss")
+            & pl.col("base_score").is_not_null()
+        )
+
+        if len(cvss_metrics) == 0:
+            return pl.DataFrame(schema=cves.schema), []
+
+        # Get best metric per CVE using preference scoring
+        best_metrics = self._get_best_metrics_per_cve(cvss_metrics)
+
+        matching = best_metrics.filter(
+            (pl.col("base_score") >= min_score) & (pl.col("base_score") <= max_score)
+        )
+        matching_ids = matching.get_column("cve_id").unique().to_list()
+
+        result = cves.filter(pl.col("cve_id").is_in(matching_ids))
+        return result, matching_ids
+
+    def _apply_cvss_filter(
+        self,
+        cves: pl.DataFrame,
+        min_score: Optional[float],
+        max_score: Optional[float],
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply CVSS score range filter."""
+        if min_score is None and max_score is None:
+            return cves, cves.get_column("cve_id").to_list()
+
+        if self._metrics_df is None:
+            return pl.DataFrame(schema=cves.schema), []
+
+        metrics_df = self._metrics_df
+        if current_ids is not None:
+            metrics_df = metrics_df.filter(pl.col("cve_id").is_in(set(current_ids)))
+
+        cvss_metrics = metrics_df.filter(
+            pl.col("metric_type").str.starts_with("cvss")
+            & pl.col("base_score").is_not_null()
+        )
+
+        if len(cvss_metrics) == 0:
+            return pl.DataFrame(schema=cves.schema), []
+
+        best_metrics = self._get_best_metrics_per_cve(cvss_metrics)
+
+        score_filter = pl.lit(True)
+        if min_score is not None:
+            score_filter = score_filter & (pl.col("base_score") >= min_score)
+        if max_score is not None:
+            score_filter = score_filter & (pl.col("base_score") <= max_score)
+
+        matching = best_metrics.filter(score_filter)
+        matching_ids = matching.get_column("cve_id").unique().to_list()
+
+        result = cves.filter(pl.col("cve_id").is_in(matching_ids))
+        return result, matching_ids
+
+    def _apply_date_filter(
+        self,
+        cves: pl.DataFrame,
+        after: Optional[str],
+        before: Optional[str],
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply date range filter."""
+        if after:
+            if not self._validate_date(after):
+                raise ValueError(f"Invalid date format: {after}. Expected YYYY-MM-DD.")
+        if before:
+            if not self._validate_date(before):
+                raise ValueError(f"Invalid date format: {before}. Expected YYYY-MM-DD.")
+
+        result = cves
+        if after:
+            result = result.filter(pl.col("date_published") >= after)
+        if before:
+            result = result.filter(pl.col("date_published") <= before)
+
+        return result, result.get_column("cve_id").to_list()
+
+    def _apply_state_filter(
+        self,
+        cves: pl.DataFrame,
+        state: str,
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply CVE state filter."""
+        result = cves.filter(pl.col("state").str.to_uppercase() == state.upper())
+        return result, result.get_column("cve_id").to_list()
+
+    def _apply_cpe_filter(
+        self,
+        cves: pl.DataFrame,
         cpe_string: str,
-        check_version: Optional[str] = None,
-    ) -> SearchResult:
-        """Search CVEs by CPE (Common Platform Enumeration) string.
-
-        Parses the CPE string and searches for CVEs affecting the specified
-        vendor/product combination. Optionally filters by version to find
-        only CVEs that actually affect a specific version.
-
-        Supports both CPE 2.2 and CPE 2.3 formats.
-
-        Args:
-            cpe_string: CPE string in 2.2 or 2.3 format.
-                Examples:
-                - cpe:2.3:a:microsoft:windows:10:*:*:*:*:*:*:*
-                - cpe:/a:apache:http_server:2.4.51
-            check_version: Optional version to check. If provided, only returns
-                CVEs where this version falls within the affected range.
-
-        Returns:
-            SearchResult with matching CVEs.
-
-        Raises:
-            ValueError: If the CPE string is invalid.
-        """
-        cves_df = self._ensure_cves_loaded()
-
+        check_version: Optional[str],
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply CPE filter."""
         if self._products_df is None:
-            return SearchResult(pl.DataFrame(schema=cves_df.schema))
+            return pl.DataFrame(schema=cves.schema), []
 
         # Parse the CPE
         cpe = parse_cpe(cpe_string)
         if not cpe:
             raise ValueError(
                 f"Invalid CPE string: {cpe_string}. "
-                "Expected format: cpe:2.3:<part>:<vendor>:<product>:... or cpe:/<part>:<vendor>:<product>..."
+                "Expected format: cpe:2.3:<part>:<vendor>:<product>:... "
+                "or cpe:/<part>:<vendor>:<product>..."
             )
 
-        # Extract version from CPE if present and not explicitly provided
-        # Version fields like "*" or "-" are treated as wildcards (no version check)
+        # Extract version from CPE if not explicitly provided
         if check_version is None and cpe.version and cpe.version not in ("*", "-"):
             check_version = cpe.version
 
-        # Search by vendor/product from CPE
         vendor, product = cpe.to_search_terms()
 
         if not vendor and not product:
@@ -513,9 +1132,11 @@ class CVESearchService:
                 f"CPE string must contain at least vendor or product: {cpe_string}"
             )
 
-        # Build filter for products - use more precise matching
-        # First, try to match the exact CPE string in the cpes field (most accurate)
-        # Use fill_null to handle null values in cpes column
+        products_df = self._products_df
+        if current_ids is not None:
+            products_df = products_df.filter(pl.col("cve_id").is_in(set(current_ids)))
+
+        # Build filter - prefer exact CPE match, fallback to vendor/product
         cpe_exact_filter = (
             pl.col("cpes")
             .fill_null("")
@@ -523,17 +1144,10 @@ class CVESearchService:
             .str.contains(cpe_string.lower(), literal=True)
         )
 
-        # Build vendor/product filter with word boundary awareness
-        # This prevents "nginx" from matching "nginx-ui" or "nginx_ui"
         vendor_product_filter = pl.lit(False)
-
         if vendor and product:
             vendor_lower = vendor.lower()
             product_lower = product.lower()
-
-            # For vendor/product match, we need both to match in the same row
-            # Use exact match or match with word boundaries
-            # Handle null values properly with fill_null
             vendor_match = (
                 pl.col("vendor").fill_null("").str.to_lowercase() == vendor_lower
             ) | (
@@ -542,7 +1156,6 @@ class CVESearchService:
                 .str.to_lowercase()
                 .str.contains(f":{vendor_lower}:", literal=True)
             )
-
             product_match = (
                 pl.col("product").fill_null("").str.to_lowercase() == product_lower
             ) | (
@@ -551,7 +1164,6 @@ class CVESearchService:
                 .str.to_lowercase()
                 .str.contains(f":{product_lower}:", literal=True)
             )
-
             vendor_product_filter = vendor_match & product_match
         elif vendor:
             vendor_lower = vendor.lower()
@@ -574,73 +1186,39 @@ class CVESearchService:
                 .str.contains(f":{product_lower}:", literal=True)
             )
 
-        # Combine: prefer exact CPE match, fallback to vendor/product match
         combined_filter = cpe_exact_filter | vendor_product_filter
+        matching = products_df.filter(combined_filter)
+        matching_ids = matching.get_column("cve_id").unique().to_list()
 
-        matching_products = self._products_df.filter(combined_filter)
-        cve_ids = matching_products.get_column("cve_id").unique().to_list()
+        result = cves.filter(pl.col("cve_id").is_in(matching_ids))
 
-        result = cves_df.filter(pl.col("cve_id").is_in(cve_ids))
-        result = result.sort("date_published", descending=True)
-        related = self._get_related_data(cve_ids)
-
-        search_result = SearchResult(result, **related)
-
-        # If a version was specified, filter by version applicability
-        if check_version and search_result.count > 0:
-            search_result = self.filter_by_version(
-                search_result,
-                version=check_version,
-                vendor=vendor,
-                product=product,
+        # Apply version filter if specified
+        if check_version and len(result) > 0:
+            related = self._get_related_data(matching_ids)
+            search_result = SearchResult(result, **related)
+            search_result = self._filter_by_version_impl(
+                search_result, check_version, vendor, product
             )
+            return search_result.cves, search_result.cves.get_column("cve_id").to_list()
 
-        return search_result
+        return result, matching_ids
 
-    def by_purl(
+    def _apply_purl_filter(
         self,
+        cves: pl.DataFrame,
         purl: str,
-        check_version: Optional[str] = None,
-        fuzzy: bool = False,
-    ) -> SearchResult:
-        """Search CVEs by Package URL (PURL).
-
-        Package URLs (PURLs) are a standardized way to identify and locate
-        software packages across different package managers and ecosystems.
-
-        Format: pkg:<type>/<namespace>/<name>@<version>?<qualifiers>#<subpath>
-        Example: pkg:npm/%40angular/animation, pkg:pypi/django, pkg:maven/org.apache.xmlgraphics/batik-anim
-
-        Args:
-            purl: Package URL string or partial PURL to search for.
-                The PURL should NOT include a version per the CVE specification.
-                Examples:
-                - pkg:npm/lodash
-                - pkg:pypi/django
-                - pkg:maven/org.apache.xmlgraphics/batik-anim
-                - pkg:github/package-url/purl-spec
-            check_version: Optional version to check. If provided, only returns
-                CVEs where this version falls within the affected range.
-            fuzzy: If True, use substring matching. If False (default), match
-                the PURL exactly or as a prefix.
-
-        Returns:
-            SearchResult with matching CVEs.
-
-        Raises:
-            ValueError: If the PURL string is empty or invalid.
-        """
-        cves_df = self._ensure_cves_loaded()
-
+        check_version: Optional[str],
+        fuzzy: bool,
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply Package URL filter."""
         if self._products_df is None:
-            return SearchResult(pl.DataFrame(schema=cves_df.schema))
+            return pl.DataFrame(schema=cves.schema), []
 
-        # Validate PURL format (basic validation)
         purl = purl.strip()
         if not purl:
             raise ValueError("PURL string cannot be empty.")
 
-        # Check for valid PURL prefix (case-insensitive)
         if not purl.lower().startswith("pkg:") and not fuzzy:
             raise ValueError(
                 f"Invalid PURL format: {purl}. "
@@ -648,9 +1226,11 @@ class CVESearchService:
                 "(e.g., pkg:npm/lodash, pkg:pypi/django)"
             )
 
-        # Search in products table for matching package_url
+        products_df = self._products_df
+        if current_ids is not None:
+            products_df = products_df.filter(pl.col("cve_id").is_in(set(current_ids)))
+
         if fuzzy:
-            # Case-insensitive substring matching
             purl_lower = purl.lower()
             purl_filter = (
                 pl.col("package_url")
@@ -659,7 +1239,6 @@ class CVESearchService:
                 .str.contains(purl_lower, literal=True)
             )
         else:
-            # Exact match or prefix match (for PURLs without version)
             purl_lower = purl.lower()
             purl_filter = (
                 pl.col("package_url").fill_null("").str.to_lowercase() == purl_lower
@@ -670,171 +1249,247 @@ class CVESearchService:
                 .str.starts_with(purl_lower)
             )
 
-        matching_products = self._products_df.filter(purl_filter)
-        cve_ids = matching_products.get_column("cve_id").unique().to_list()
+        matching = products_df.filter(purl_filter)
+        matching_ids = matching.get_column("cve_id").unique().to_list()
 
-        result = cves_df.filter(pl.col("cve_id").is_in(cve_ids))
-        result = result.sort("date_published", descending=True)
-        related = self._get_related_data(cve_ids)
+        result = cves.filter(pl.col("cve_id").is_in(matching_ids))
 
-        search_result = SearchResult(result, **related)
+        # Apply version filter if specified
+        if check_version and len(result) > 0:
+            related = self._get_related_data(matching_ids)
+            search_result = SearchResult(result, **related)
+            search_result = self._filter_by_version_impl(search_result, check_version)
+            return search_result.cves, search_result.cves.get_column("cve_id").to_list()
 
-        # If a version was specified, filter by version applicability
-        if check_version and search_result.count > 0:
-            search_result = self.filter_by_version(
-                search_result,
-                version=check_version,
-            )
+        return result, matching_ids
 
-        return search_result
-
-    def filter_by_version(
+    def _apply_version_filter(
         self,
-        result: SearchResult,
+        cves: pl.DataFrame,
         version: str,
-        vendor: Optional[str] = None,
-        product: Optional[str] = None,
-    ) -> SearchResult:
-        """Filter CVEs to only those affecting a specific version.
+        vendor: Optional[str],
+        product: Optional[str],
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply version filter."""
+        if current_ids is None:
+            current_ids = cves.get_column("cve_id").to_list()
 
-        Uses the version range information from CVE records to determine
-        if the specified version is actually affected.
+        related = self._get_related_data(current_ids)
+        search_result = SearchResult(cves, **related)
+        filtered = self._filter_by_version_impl(search_result, version, vendor, product)
 
-        Args:
-            result: SearchResult to filter.
-            version: Version string to check (e.g., "2.4.51", "10.0.19041").
-            vendor: Optional vendor to match in products (for disambiguation).
-            product: Optional product to match (for disambiguation).
+        return filtered.cves, filtered.cves.get_column("cve_id").to_list()
 
-        Returns:
-            New SearchResult with only CVEs affecting the specified version.
-        """
-        if result.count == 0:
-            return result
+    def _apply_kev_filter(
+        self,
+        cves: pl.DataFrame,
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply CISA KEV filter."""
+        if self._metrics_df is None:
+            return pl.DataFrame(schema=cves.schema), []
 
-        if result.versions is None or len(result.versions) == 0:
-            # No version info available, return all (conservative approach)
-            return result
+        metrics_df = self._metrics_df
+        if current_ids is not None:
+            metrics_df = metrics_df.filter(pl.col("cve_id").is_in(set(current_ids)))
 
-        if result.products is None or len(result.products) == 0:
-            return result
+        kev_cves = (
+            metrics_df.filter(pl.col("other_type") == "kev")
+            .get_column("cve_id")
+            .unique()
+            .to_list()
+        )
 
-        cve_ids_in_result = set(result.cves.get_column("cve_id").to_list())
-        affected_cve_ids: List[str] = []
+        result = cves.filter(pl.col("cve_id").is_in(kev_cves))
+        return result, result.get_column("cve_id").to_list()
 
-        # Get products and versions for the CVEs in the result
-        products_df = result.products.filter(pl.col("cve_id").is_in(cve_ids_in_result))
-        versions_df = result.versions.filter(pl.col("cve_id").is_in(cve_ids_in_result))
+    def _apply_recent_filter(
+        self,
+        cves: pl.DataFrame,
+        days: int,
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply recent days filter."""
+        cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        result = cves.filter(pl.col("date_published") >= cutoff)
+        return result, result.get_column("cve_id").to_list()
 
-        # If vendor/product filters specified, narrow down products
-        if vendor:
-            vendor_lower = vendor.lower()
-            products_df = products_df.filter(
-                pl.col("vendor")
-                .str.to_lowercase()
-                .str.contains(vendor_lower, literal=True)
-            )
-        if product:
-            product_lower = product.lower()
-            products_df = products_df.filter(
+    def _apply_text_search_filter(
+        self,
+        cves: pl.DataFrame,
+        query: str,
+        mode: SearchMode,
+        vendor: Optional[str],
+        current_ids: Optional[List[str]],
+    ) -> tuple[pl.DataFrame, List[str]]:
+        """Apply text search filter on products."""
+        if self._products_df is None:
+            return pl.DataFrame(schema=cves.schema), []
+
+        products_df = self._products_df
+        if current_ids is not None:
+            products_df = products_df.filter(pl.col("cve_id").is_in(set(current_ids)))
+
+        # Build filter based on mode
+        if mode == SearchMode.STRICT:
+            query_lower = query.lower()
+            product_filter = pl.col("product").str.to_lowercase() == query_lower
+        elif mode == SearchMode.REGEX:
+            try:
+                re.compile(query, re.IGNORECASE)
+            except re.error as e:
+                raise ValueError(f"Invalid regex pattern: {e}")
+            product_filter = (
                 pl.col("product")
                 .str.to_lowercase()
-                .str.contains(product_lower, literal=True)
+                .str.contains(query.lower(), literal=False)
+            )
+        else:  # FUZZY
+            query_escaped = re.escape(query.lower())
+            product_filter = (
+                pl.col("product")
+                .str.to_lowercase()
+                .str.contains(query_escaped, literal=False)
             )
 
-        # Build a map of product_id to CVE IDs
-        product_cve_map: Dict[str, str] = {}
-        for row in products_df.iter_rows(named=True):
-            product_id = row.get("product_id")
-            cve_id = row.get("cve_id")
-            if product_id and cve_id:
-                product_cve_map[str(product_id)] = cve_id
+        if vendor:
+            if mode == SearchMode.STRICT:
+                vendor_filter = pl.col("vendor").str.to_lowercase() == vendor.lower()
+            elif mode == SearchMode.REGEX:
+                vendor_filter = (
+                    pl.col("vendor")
+                    .str.to_lowercase()
+                    .str.contains(vendor.lower(), literal=False)
+                )
+            else:
+                vendor_escaped = re.escape(vendor.lower())
+                vendor_filter = (
+                    pl.col("vendor")
+                    .str.to_lowercase()
+                    .str.contains(vendor_escaped, literal=False)
+                )
+            product_filter = product_filter & vendor_filter
 
-        # Group versions by product_id
-        for row in versions_df.iter_rows(named=True):
-            product_id = str(row.get("product_id", ""))
-            cve_id = row.get("cve_id")
+        matching = products_df.filter(product_filter)
+        matching_ids = matching.get_column("cve_id").unique().to_list()
 
-            # Skip if this product wasn't in our filtered products
-            if product_id not in product_cve_map:
-                continue
+        # If no product matches, try vendor match
+        if not matching_ids:
+            if mode == SearchMode.STRICT:
+                vendor_filter = pl.col("vendor").str.to_lowercase() == query.lower()
+            elif mode == SearchMode.REGEX:
+                vendor_filter = (
+                    pl.col("vendor")
+                    .str.to_lowercase()
+                    .str.contains(query.lower(), literal=False)
+                )
+            else:
+                query_escaped = re.escape(query.lower())
+                vendor_filter = (
+                    pl.col("vendor")
+                    .str.to_lowercase()
+                    .str.contains(query_escaped, literal=False)
+                )
+            matching = products_df.filter(vendor_filter)
+            matching_ids = matching.get_column("cve_id").unique().to_list()
 
-            version_start = row.get("version")
-            less_than = row.get("less_than")
-            less_than_or_equal = row.get("less_than_or_equal")
-            status = row.get("status")
+        result = cves.filter(pl.col("cve_id").is_in(matching_ids))
+        return result, matching_ids
 
-            # Handle version range strings like "0.5.6 - 1.13.2" in the version field
-            # These occur in older CVE data where ranges weren't split into separate fields
-            if version_start and " - " in str(version_start):
-                parts = str(version_start).split(" - ")
-                if len(parts) == 2:
-                    version_start = parts[0].strip()
-                    # If no explicit upper bound is set, use the range end as less_than_or_equal
-                    if not less_than and not less_than_or_equal:
-                        less_than_or_equal = parts[1].strip()
-
-            # Check if the version is affected
-            is_affected = is_version_affected(
-                check_version=version,
-                version_start=version_start,
-                less_than=less_than,
-                less_than_or_equal=less_than_or_equal,
-                status=status,
-            )
-
-            if is_affected and cve_id and cve_id not in affected_cve_ids:
-                affected_cve_ids.append(cve_id)
-
-        # If no version info found for any product, check if any CVEs had no version
-        # data at all (conservative: include them)
-        cves_with_version_info = set(
-            versions_df.get_column("cve_id").unique().to_list()
-        )
-        for cve_id in cve_ids_in_result:
-            if cve_id not in cves_with_version_info and cve_id not in affected_cve_ids:
-                # No version info for this CVE - include it conservatively
-                affected_cve_ids.append(cve_id)
-
-        filtered_cves = result.cves.filter(pl.col("cve_id").is_in(affected_cve_ids))
-        related = self._get_related_data(affected_cve_ids)
-
-        return SearchResult(filtered_cves, **related)
-
-    def by_severity(
+    def _apply_semantic_search(
         self,
-        severity: SeverityLevel,
-        after: Optional[str] = None,
-        before: Optional[str] = None,
+        query: str,
+        top_k: int,
+        min_similarity: float,
     ) -> SearchResult:
-        """Search CVEs by severity level.
+        """Apply semantic search."""
+        from cvecli.services.embeddings import EmbeddingsService, is_semantic_available
 
-        Args:
-            severity: Severity level (none, low, medium, high, critical).
-            after: Only include CVEs published after this date (YYYY-MM-DD).
-            before: Only include CVEs published before this date (YYYY-MM-DD).
+        if not is_semantic_available():
+            from cvecli.services.embeddings import SemanticDependencyError
 
-        Returns:
-            SearchResult with matching CVEs.
-        """
+            raise SemanticDependencyError("semantic search")
+
         cves_df = self._ensure_cves_loaded()
 
-        if self._metrics_df is None:
-            return SearchResult(pl.DataFrame(schema=cves_df.schema))
-
-        min_score, max_score = SEVERITY_THRESHOLDS[severity]
-
-        # Get CVE IDs with matching severity based on their BEST metric
-        # This ensures consistency with get_best_metric() preference logic
-        cvss_metrics = self._metrics_df.filter(
-            pl.col("metric_type").str.starts_with("cvss")
-            & pl.col("base_score").is_not_null()
+        embeddings_service = EmbeddingsService(config=self.config, quiet=True)
+        similarity_results = embeddings_service.search(
+            query, top_k=top_k, min_similarity=min_similarity
         )
 
-        if len(cvss_metrics) == 0:
+        if len(similarity_results) == 0:
             return SearchResult(pl.DataFrame(schema=cves_df.schema))
 
-        # Apply preference scoring (same as get_best_metric)
+        cve_ids = similarity_results.get_column("cve_id").to_list()
+        similarity_scores = dict(
+            zip(
+                similarity_results.get_column("cve_id").to_list(),
+                similarity_results.get_column("similarity_score").to_list(),
+            )
+        )
+
+        result = cves_df.filter(pl.col("cve_id").is_in(cve_ids))
+        result = result.with_columns(
+            pl.col("cve_id")
+            .replace_strict(similarity_scores, default=0.0)
+            .alias("similarity_score")
+        )
+        result = result.sort("similarity_score", descending=True)
+
+        related = self._get_related_data(cve_ids)
+        return SearchResult(result, **related)
+
+    def _apply_sorting(
+        self,
+        cves: pl.DataFrame,
+        field: str,
+        descending: bool,
+        current_ids: Optional[List[str]],
+    ) -> pl.DataFrame:
+        """Apply sorting to results."""
+        field = field.lower()
+        valid_fields = ["date", "severity", "cvss"]
+
+        if field not in valid_fields:
+            raise ValueError(
+                f"Invalid sort field: {field}. Must be one of: {', '.join(valid_fields)}"
+            )
+
+        if field == "date":
+            return cves.sort("date_published", descending=descending)
+
+        if field in ("severity", "cvss"):
+            if self._metrics_df is None:
+                return cves
+
+            cve_ids = set(cves.get_column("cve_id").to_list())
+            cvss_metrics = self._metrics_df.filter(
+                pl.col("cve_id").is_in(cve_ids)
+                & pl.col("metric_type").str.starts_with("cvss")
+                & pl.col("base_score").is_not_null()
+            )
+
+            if len(cvss_metrics) == 0:
+                return cves
+
+            best_metrics = self._get_best_metrics_per_cve(cvss_metrics)
+            best_metrics = best_metrics.select(["cve_id", "base_score"])
+
+            return (
+                cves.join(best_metrics, on="cve_id", how="left")
+                .sort("base_score", descending=descending, nulls_last=True)
+                .drop("base_score")
+            )
+
+        return cves
+
+    # =========================================================================
+    # Helper methods
+    # =========================================================================
+
+    def _get_best_metrics_per_cve(self, cvss_metrics: pl.DataFrame) -> pl.DataFrame:
+        """Get best metric per CVE using preference scoring."""
         scored = cvss_metrics.with_columns(
             [
                 pl.when(pl.col("source") == "cna")
@@ -854,126 +1509,111 @@ class CVESearchService:
             [(pl.col("source_pref") + pl.col("version_pref")).alias("preference")]
         )
 
-        # Get best metric per CVE
-        best_metrics = (
+        return (
             scored.sort(["cve_id", "preference"], descending=[False, True])
             .group_by("cve_id")
             .first()
         )
 
-        # Filter to those matching the severity range
-        matching = best_metrics.filter(
-            (pl.col("base_score") >= min_score) & (pl.col("base_score") <= max_score)
-        )
-
-        cve_ids = matching.get_column("cve_id").unique().to_list()
-
-        result = cves_df.filter(pl.col("cve_id").is_in(cve_ids))
-
-        # Apply date filters
-        if after:
-            result = result.filter(pl.col("date_published") >= after)
-        if before:
-            result = result.filter(pl.col("date_published") <= before)
-
-        result = result.sort("date_published", descending=True)
-        filtered_cve_ids = result.get_column("cve_id").to_list()
-        related = self._get_related_data(filtered_cve_ids)
-
-        return SearchResult(result, **related)
-
-    def by_date_range(
-        self, after: Optional[str] = None, before: Optional[str] = None
-    ) -> SearchResult:
-        """Search CVEs by publication date range.
-
-        Args:
-            after: Only include CVEs published after this date (YYYY-MM-DD).
-            before: Only include CVEs published before this date (YYYY-MM-DD).
-
-        Returns:
-            SearchResult with matching CVEs.
-        """
-        cves_df = self._ensure_cves_loaded()
-
-        result = cves_df
-
-        if after:
-            result = result.filter(pl.col("date_published") >= after)
-        if before:
-            result = result.filter(pl.col("date_published") <= before)
-
-        result = result.sort("date_published", descending=True)
-        cve_ids = result.get_column("cve_id").to_list()
-        related = self._get_related_data(cve_ids)
-
-        return SearchResult(result, **related)
-
-    def semantic_search(
+    def _filter_by_version_impl(
         self,
-        query: str,
-        top_k: int = 100,
-        min_similarity: float = 0.3,
+        result: SearchResult,
+        version: str,
+        vendor: Optional[str] = None,
+        product: Optional[str] = None,
     ) -> SearchResult:
-        """Search CVEs using semantic similarity.
+        """Internal implementation for version filtering."""
+        if result.count == 0:
+            return result
 
-        Uses sentence embeddings to find CVEs with semantically similar
-        titles and descriptions to the query.
+        if result.versions is None or len(result.versions) == 0:
+            return result
 
-        Args:
-            query: Natural language search query.
-            top_k: Maximum number of results to return.
-            min_similarity: Minimum cosine similarity threshold (0-1).
-                           Default 0.3 filters out weak matches.
+        if result.products is None or len(result.products) == 0:
+            return result
 
-        Returns:
-            SearchResult with semantically similar CVEs, ordered by similarity.
+        cve_ids_in_result = set(result.cves.get_column("cve_id").to_list())
+        affected_cve_ids: List[str] = []
 
-        Raises:
-            FileNotFoundError: If embeddings have not been generated.
-            SemanticDependencyError: If semantic dependencies are not installed.
-        """
-        from cvecli.services.embeddings import EmbeddingsService, is_semantic_available
+        products_df = result.products.filter(pl.col("cve_id").is_in(cve_ids_in_result))
+        versions_df = result.versions.filter(pl.col("cve_id").is_in(cve_ids_in_result))
 
-        if not is_semantic_available():
-            from cvecli.services.embeddings import SemanticDependencyError
-
-            raise SemanticDependencyError("semantic search")
-
-        cves_df = self._ensure_cves_loaded()
-
-        # Perform semantic search
-        embeddings_service = EmbeddingsService(config=self.config, quiet=True)
-        similarity_results = embeddings_service.search(
-            query, top_k=top_k, min_similarity=min_similarity
-        )
-
-        if len(similarity_results) == 0:
-            return SearchResult(pl.DataFrame(schema=cves_df.schema))
-
-        # Get CVE IDs and their similarity scores
-        cve_ids = similarity_results.get_column("cve_id").to_list()
-        similarity_scores = dict(
-            zip(
-                similarity_results.get_column("cve_id").to_list(),
-                similarity_results.get_column("similarity_score").to_list(),
+        if vendor:
+            vendor_lower = vendor.lower()
+            products_df = products_df.filter(
+                pl.col("vendor")
+                .str.to_lowercase()
+                .str.contains(vendor_lower, literal=True)
             )
+        if product:
+            product_lower = product.lower()
+            products_df = products_df.filter(
+                pl.col("product")
+                .str.to_lowercase()
+                .str.contains(product_lower, literal=True)
+            )
+
+        product_cve_map: Dict[str, str] = {}
+        for row in products_df.iter_rows(named=True):
+            product_id = row.get("product_id")
+            cve_id = row.get("cve_id")
+            if product_id and cve_id:
+                product_cve_map[str(product_id)] = cve_id
+
+        for row in versions_df.iter_rows(named=True):
+            product_id = str(row.get("product_id", ""))
+            cve_id = row.get("cve_id")
+
+            if product_id not in product_cve_map:
+                continue
+
+            version_start = row.get("version")
+            less_than = row.get("less_than")
+            less_than_or_equal = row.get("less_than_or_equal")
+            status = row.get("status")
+
+            if version_start and " - " in str(version_start):
+                parts = str(version_start).split(" - ")
+                if len(parts) == 2:
+                    version_start = parts[0].strip()
+                    if not less_than and not less_than_or_equal:
+                        less_than_or_equal = parts[1].strip()
+
+            is_affected = is_version_affected(
+                check_version=version,
+                version_start=version_start,
+                less_than=less_than,
+                less_than_or_equal=less_than_or_equal,
+                status=status,
+            )
+
+            if is_affected and cve_id and cve_id not in affected_cve_ids:
+                affected_cve_ids.append(cve_id)
+
+        cves_with_version_info = set(
+            versions_df.get_column("cve_id").unique().to_list()
         )
+        for cve_id in cve_ids_in_result:
+            if cve_id not in cves_with_version_info and cve_id not in affected_cve_ids:
+                affected_cve_ids.append(cve_id)
 
-        # Get CVE details
-        result = cves_df.filter(pl.col("cve_id").is_in(cve_ids))
+        filtered_cves = result.cves.filter(pl.col("cve_id").is_in(affected_cve_ids))
+        related = self._get_related_data(affected_cve_ids)
 
-        # Add similarity score and sort by it
-        result = result.with_columns(
-            pl.col("cve_id")
-            .replace_strict(similarity_scores, default=0.0)
-            .alias("similarity_score")
-        )
-        result = result.sort("similarity_score", descending=True)
+        return SearchResult(filtered_cves, **related)
 
-        related = self._get_related_data(cve_ids)
+    @staticmethod
+    def _validate_date(date_str: str) -> bool:
+        """Validate a date string is in YYYY-MM-DD format."""
+        try:
+            datetime.strptime(date_str, "%Y-%m-%d")
+            return True
+        except ValueError:
+            return False
 
-        return SearchResult(result, **related)
+    # =========================================================================
+    # Utility methods
+    # =========================================================================
 
     def has_embeddings(self) -> bool:
         """Check if semantic search embeddings are available.
@@ -982,26 +1622,6 @@ class CVESearchService:
             True if embeddings file exists, False otherwise.
         """
         return self.config.cve_embeddings_parquet.exists()
-
-    def recent(self, days: int = 30) -> SearchResult:
-        """Get recently published CVEs.
-
-        Args:
-            days: Number of days to look back.
-
-        Returns:
-            SearchResult with recent CVEs.
-        """
-        cves_df = self._ensure_cves_loaded()
-
-        cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-        result = cves_df.filter(pl.col("date_published") >= cutoff)
-        result = result.sort("date_published", descending=True)
-
-        cve_ids = result.get_column("cve_id").to_list()
-        related = self._get_related_data(cve_ids)
-
-        return SearchResult(result, **related)
 
     def stats(self) -> dict:
         """Get overall statistics about the CVE database.
@@ -1091,7 +1711,6 @@ class CVESearchService:
         if self._metrics_df is None:
             return None
 
-        # First try CVSS metrics with numeric scores
         cve_metrics = self._metrics_df.filter(
             (pl.col("cve_id") == cve_id)
             & pl.col("metric_type").str.starts_with("cvss")
@@ -1099,32 +1718,11 @@ class CVESearchService:
         )
 
         if len(cve_metrics) > 0:
-            # Score by preference
-            scored = cve_metrics.with_columns(
-                [
-                    pl.when(pl.col("source") == "cna")
-                    .then(100)
-                    .otherwise(0)
-                    .alias("source_pref"),
-                    pl.when(pl.col("metric_type") == "cvssV4_0")
-                    .then(40)
-                    .when(pl.col("metric_type") == "cvssV3_1")
-                    .then(30)
-                    .when(pl.col("metric_type") == "cvssV3_0")
-                    .then(20)
-                    .otherwise(10)
-                    .alias("version_pref"),
-                ]
-            ).with_columns(
-                [(pl.col("source_pref") + pl.col("version_pref")).alias("preference")]
-            )
-
-            best = scored.sort("preference", descending=True).head(1)
-
+            best = self._get_best_metrics_per_cve(cve_metrics)
             if len(best) > 0:
                 return best.to_dicts()[0]
 
-        # Fall back to text severity metrics (type="other")
+        # Fall back to text severity metrics
         text_metrics = self._metrics_df.filter(
             (pl.col("cve_id") == cve_id)
             & (pl.col("metric_type") == "other")
@@ -1132,7 +1730,6 @@ class CVESearchService:
         )
 
         if len(text_metrics) > 0:
-            # Prefer CNA
             cna_text = text_metrics.filter(pl.col("source") == "cna")
             if len(cna_text) > 0:
                 return cna_text.head(1).to_dicts()[0]
@@ -1163,13 +1760,11 @@ class CVESearchService:
         )
 
         if len(desc) == 0:
-            # Fall back to any source
             desc = self._descriptions_df.filter(
                 (pl.col("cve_id") == cve_id) & (pl.col("lang") == lang)
             )
 
         if len(desc) == 0:
-            # Fall back to any language
             desc = self._descriptions_df.filter(pl.col("cve_id") == cve_id)
 
         if len(desc) == 0:
@@ -1185,7 +1780,7 @@ class CVESearchService:
             cve_id: CVE identifier.
 
         Returns:
-            Dictionary with KEV data including dateAdded and reference, or None if not in KEV.
+            Dictionary with KEV data, or None if not in KEV.
         """
         self._load_data()
 
@@ -1203,8 +1798,6 @@ class CVESearchService:
         other_content = kev_row.get("other_content")
 
         if other_content:
-            import json as json_module
-
             try:
                 result: dict[str, Any] = json_module.loads(other_content)
                 return result
@@ -1213,7 +1806,7 @@ class CVESearchService:
         return None
 
     def get_ssvc_info(self, cve_id: str) -> Optional[dict[str, Any]]:
-        """Get CISA SSVC (Stakeholder-Specific Vulnerability Categorization) info for a CVE.
+        """Get CISA SSVC info for a CVE.
 
         Args:
             cve_id: CVE identifier.
@@ -1237,627 +1830,12 @@ class CVESearchService:
         other_content = ssvc_row.get("other_content")
 
         if other_content:
-            import json as json_module
-
             try:
                 result: dict[str, Any] = json_module.loads(other_content)
                 return result
             except (json_module.JSONDecodeError, TypeError):
                 return {"raw": other_content}
         return None
-
-    def filter_by_state(self, search_result: SearchResult, state: str) -> SearchResult:
-        """Filter an existing SearchResult by CVE state.
-
-        Args:
-            search_result: SearchResult to filter.
-            state: CVE state to filter by (e.g., "PUBLISHED", "REJECTED").
-
-        Returns:
-            New SearchResult with filtered CVEs and related data.
-        """
-        filtered_cves = search_result.cves.filter(
-            pl.col("state").str.to_uppercase() == state.upper()
-        )
-
-        cve_ids = filtered_cves.get_column("cve_id").to_list()
-        related = self._get_related_data(cve_ids)
-
-        return SearchResult(filtered_cves, **related)
-
-    def filter_by_kev(self, result: SearchResult) -> SearchResult:
-        """Filter an existing SearchResult to only include CVEs in CISA KEV.
-
-        Args:
-            result: SearchResult to filter.
-
-        Returns:
-            New SearchResult with only KEV CVEs.
-        """
-        self._load_data()
-
-        if self._metrics_df is None:
-            return SearchResult(pl.DataFrame(schema=result.cves.schema))
-
-        # Get CVE IDs that have KEV entries
-        kev_cves = (
-            self._metrics_df.filter(pl.col("other_type") == "kev")
-            .get_column("cve_id")
-            .unique()
-            .to_list()
-        )
-
-        cve_ids_in_result = set(result.cves.get_column("cve_id").to_list())
-        kev_cve_ids = [cve_id for cve_id in kev_cves if cve_id in cve_ids_in_result]
-
-        filtered_cves = result.cves.filter(pl.col("cve_id").is_in(kev_cve_ids))
-        related = self._get_related_data(kev_cve_ids)
-
-        return SearchResult(filtered_cves, **related)
-
-    @staticmethod
-    def validate_date(date_str: str) -> bool:
-        """Validate a date string is in YYYY-MM-DD format.
-
-        Args:
-            date_str: Date string to validate.
-
-        Returns:
-            True if valid, False otherwise.
-        """
-        try:
-            datetime.strptime(date_str, "%Y-%m-%d")
-            return True
-        except ValueError:
-            return False
-
-    def filter_by_date(
-        self,
-        result: SearchResult,
-        after: Optional[str] = None,
-        before: Optional[str] = None,
-    ) -> SearchResult:
-        """Filter an existing SearchResult by date range.
-
-        Args:
-            result: SearchResult to filter.
-            after: Only include CVEs published after this date (YYYY-MM-DD).
-            before: Only include CVEs published before this date (YYYY-MM-DD).
-
-        Returns:
-            New SearchResult with filtered CVEs and related data.
-
-        Raises:
-            ValueError: If date format is invalid.
-        """
-        if after and not self.validate_date(after):
-            raise ValueError(f"Invalid date format: {after}. Expected YYYY-MM-DD.")
-        if before and not self.validate_date(before):
-            raise ValueError(f"Invalid date format: {before}. Expected YYYY-MM-DD.")
-
-        filtered_cves = result.cves
-
-        if after:
-            filtered_cves = filtered_cves.filter(pl.col("date_published") >= after)
-        if before:
-            filtered_cves = filtered_cves.filter(pl.col("date_published") <= before)
-
-        # Get related data for filtered CVEs
-        cve_ids = filtered_cves.get_column("cve_id").to_list()
-        related = self._get_related_data(cve_ids)
-
-        return SearchResult(filtered_cves, **related)
-
-    def filter_by_severity(
-        self, result: SearchResult, severity: SeverityLevel
-    ) -> SearchResult:
-        """Filter an existing SearchResult by severity level.
-
-        Args:
-            result: SearchResult to filter.
-            severity: Severity level (none, low, medium, high, critical).
-
-        Returns:
-            New SearchResult with CVEs matching severity level.
-        """
-        if result.metrics is None or len(result.metrics) == 0:
-            return SearchResult(pl.DataFrame(schema=result.cves.schema))
-
-        min_score, max_score = SEVERITY_THRESHOLDS[severity]
-
-        # Get CVE IDs with matching severity based on their BEST metric
-        # This ensures consistency with get_best_metric() preference logic
-        cve_ids_in_result = set(result.cves.get_column("cve_id").to_list())
-
-        cvss_metrics = result.metrics.filter(
-            pl.col("cve_id").is_in(cve_ids_in_result)
-            & pl.col("metric_type").str.starts_with("cvss")
-            & pl.col("base_score").is_not_null()
-        )
-
-        if len(cvss_metrics) == 0:
-            return SearchResult(pl.DataFrame(schema=result.cves.schema))
-
-        # Apply preference scoring (same as get_best_metric)
-        scored = cvss_metrics.with_columns(
-            [
-                pl.when(pl.col("source") == "cna")
-                .then(100)
-                .otherwise(0)
-                .alias("source_pref"),
-                pl.when(pl.col("metric_type") == "cvssV4_0")
-                .then(40)
-                .when(pl.col("metric_type") == "cvssV3_1")
-                .then(30)
-                .when(pl.col("metric_type") == "cvssV3_0")
-                .then(20)
-                .otherwise(10)
-                .alias("version_pref"),
-            ]
-        ).with_columns(
-            [(pl.col("source_pref") + pl.col("version_pref")).alias("preference")]
-        )
-
-        # Get best metric per CVE
-        best_metrics = (
-            scored.sort(["cve_id", "preference"], descending=[False, True])
-            .group_by("cve_id")
-            .first()
-        )
-
-        # Filter to those matching the severity range
-        matching = best_metrics.filter(
-            (pl.col("base_score") >= min_score) & (pl.col("base_score") <= max_score)
-        )
-
-        cve_ids = matching.get_column("cve_id").unique().to_list()
-
-        filtered_cves = result.cves.filter(pl.col("cve_id").is_in(cve_ids))
-        related = self._get_related_data(cve_ids)
-
-        return SearchResult(filtered_cves, **related)
-
-    def filter_by_cvss_score(
-        self,
-        result: SearchResult,
-        min_score: Optional[float] = None,
-        max_score: Optional[float] = None,
-    ) -> SearchResult:
-        """Filter an existing SearchResult by CVSS score range.
-
-        Args:
-            result: SearchResult to filter.
-            min_score: Minimum CVSS score (inclusive).
-            max_score: Maximum CVSS score (inclusive).
-
-        Returns:
-            New SearchResult with CVEs matching CVSS range.
-        """
-        if result.metrics is None or len(result.metrics) == 0:
-            return SearchResult(pl.DataFrame(schema=result.cves.schema))
-
-        if min_score is None and max_score is None:
-            return result
-
-        cve_ids_in_result = set(result.cves.get_column("cve_id").to_list())
-
-        cvss_metrics = result.metrics.filter(
-            pl.col("cve_id").is_in(cve_ids_in_result)
-            & pl.col("metric_type").str.starts_with("cvss")
-            & pl.col("base_score").is_not_null()
-        )
-
-        if len(cvss_metrics) == 0:
-            return SearchResult(pl.DataFrame(schema=result.cves.schema))
-
-        # Apply preference scoring (same as get_best_metric)
-        scored = cvss_metrics.with_columns(
-            [
-                pl.when(pl.col("source") == "cna")
-                .then(100)
-                .otherwise(0)
-                .alias("source_pref"),
-                pl.when(pl.col("metric_type") == "cvssV4_0")
-                .then(40)
-                .when(pl.col("metric_type") == "cvssV3_1")
-                .then(30)
-                .when(pl.col("metric_type") == "cvssV3_0")
-                .then(20)
-                .otherwise(10)
-                .alias("version_pref"),
-            ]
-        ).with_columns(
-            [(pl.col("source_pref") + pl.col("version_pref")).alias("preference")]
-        )
-
-        # Get best metric per CVE
-        best_metrics = (
-            scored.sort(["cve_id", "preference"], descending=[False, True])
-            .group_by("cve_id")
-            .first()
-        )
-
-        # Build filter conditions
-        score_filter = pl.lit(True)
-        if min_score is not None:
-            score_filter = score_filter & (pl.col("base_score") >= min_score)
-        if max_score is not None:
-            score_filter = score_filter & (pl.col("base_score") <= max_score)
-
-        matching = best_metrics.filter(score_filter)
-        cve_ids = matching.get_column("cve_id").unique().to_list()
-
-        filtered_cves = result.cves.filter(pl.col("cve_id").is_in(cve_ids))
-        related = self._get_related_data(cve_ids)
-
-        return SearchResult(filtered_cves, **related)
-
-    def filter_by_cwe(self, result: SearchResult, cwe_id: str) -> SearchResult:
-        """Filter an existing SearchResult by CWE ID.
-
-        Args:
-            result: SearchResult to filter.
-            cwe_id: CWE ID (e.g., "787", "CWE-787").
-
-        Returns:
-            New SearchResult with CVEs matching the CWE.
-        """
-        if result.cwes is None or len(result.cwes) == 0:
-            return SearchResult(pl.DataFrame(schema=result.cves.schema))
-
-        # Normalize CWE ID
-        cwe_normalized = cwe_id.upper()
-        if not cwe_normalized.startswith("CWE-"):
-            cwe_normalized = f"CWE-{cwe_normalized}"
-
-        cve_ids_in_result = set(result.cves.get_column("cve_id").to_list())
-        cwes_in_result = result.cwes.filter(pl.col("cve_id").is_in(cve_ids_in_result))
-
-        matching = cwes_in_result.filter(
-            pl.col("cwe_id").str.to_uppercase() == cwe_normalized
-        )
-        cve_ids = matching.get_column("cve_id").unique().to_list()
-
-        filtered_cves = result.cves.filter(pl.col("cve_id").is_in(cve_ids))
-        related = self._get_related_data(cve_ids)
-
-        return SearchResult(filtered_cves, **related)
-
-    def sort_results(
-        self, result: SearchResult, field: str, order: str = "descending"
-    ) -> SearchResult:
-        """Sort search results by the specified field.
-
-        Args:
-            result: SearchResult to sort.
-            field: Field to sort by. Valid values: date, severity, cvss
-            order: Sort order. Valid values: ascending, descending (default: descending)
-
-        Returns:
-            New SearchResult with sorted CVEs.
-
-        Raises:
-            ValueError: If field or order is invalid.
-        """
-        if result.count == 0:
-            return result
-
-        # Validate and parse
-        field = field.lower()
-        order = order.lower()
-
-        if order not in ["ascending", "descending"]:
-            raise ValueError(
-                f"Invalid sort order: {order}. Must be 'ascending' or 'descending'"
-            )
-
-        descending = order == "descending"
-
-        valid_fields = ["date", "severity", "cvss"]
-        if field not in valid_fields:
-            raise ValueError(
-                f"Invalid sort field: {field}. Must be one of: {', '.join(valid_fields)}"
-            )
-
-        if field == "date":
-            sorted_cves = result.cves.sort("date_published", descending=descending)
-        elif field in ("severity", "cvss"):
-            # Need to join with metrics to sort by CVSS score
-            if result.metrics is None or len(result.metrics) == 0:
-                # No metrics available, return as-is
-                return result
-
-            cve_ids_in_result = set(result.cves.get_column("cve_id").to_list())
-
-            cvss_metrics = result.metrics.filter(
-                pl.col("cve_id").is_in(cve_ids_in_result)
-                & pl.col("metric_type").str.starts_with("cvss")
-                & pl.col("base_score").is_not_null()
-            )
-
-            if len(cvss_metrics) == 0:
-                return result
-
-            # Get best metric per CVE
-            scored = cvss_metrics.with_columns(
-                [
-                    pl.when(pl.col("source") == "cna")
-                    .then(100)
-                    .otherwise(0)
-                    .alias("source_pref"),
-                    pl.when(pl.col("metric_type") == "cvssV4_0")
-                    .then(40)
-                    .when(pl.col("metric_type") == "cvssV3_1")
-                    .then(30)
-                    .when(pl.col("metric_type") == "cvssV3_0")
-                    .then(20)
-                    .otherwise(10)
-                    .alias("version_pref"),
-                ]
-            ).with_columns(
-                [(pl.col("source_pref") + pl.col("version_pref")).alias("preference")]
-            )
-
-            best_metrics = (
-                scored.sort(["cve_id", "preference"], descending=[False, True])
-                .group_by("cve_id")
-                .first()
-                .select(["cve_id", "base_score"])
-            )
-
-            # Join and sort
-            sorted_cves = (
-                result.cves.join(best_metrics, on="cve_id", how="left")
-                .sort("base_score", descending=descending, nulls_last=True)
-                .drop("base_score")
-            )
-        else:
-            sorted_cves = result.cves
-
-        cve_ids = sorted_cves.get_column("cve_id").to_list()
-        related = self._get_related_data(cve_ids)
-
-        return SearchResult(sorted_cves, **related)
-
-    def search(
-        self,
-        query: str,
-        mode: SearchMode = SearchMode.FUZZY,
-        vendor: Optional[str] = None,
-        product_filter: Optional[str] = None,
-        top_k: int = 100,
-        min_similarity: float = 0.3,
-    ) -> SearchResult:
-        """Unified search method supporting multiple search modes.
-
-        Args:
-            query: Search query string.
-            mode: Search mode (strict, regex, fuzzy, semantic).
-            vendor: Optional vendor filter.
-            product_filter: Optional product filter (for title/description search).
-            top_k: Maximum results for semantic search.
-            min_similarity: Minimum similarity for semantic search.
-
-        Returns:
-            SearchResult with matching CVEs.
-        """
-        if mode == SearchMode.SEMANTIC:
-            return self.semantic_search(
-                query, top_k=top_k, min_similarity=min_similarity
-            )
-
-        # For text-based searches, search in products first
-        if mode == SearchMode.STRICT:
-            result = self._search_strict(query, vendor=vendor)
-        elif mode == SearchMode.REGEX:
-            result = self._search_regex(query, vendor=vendor)
-        else:  # FUZZY (default)
-            result = self._search_fuzzy(query, vendor=vendor)
-
-        # Apply product filter if specified
-        if product_filter and result.count > 0:
-            result = self.filter_by_product(result, product_filter, mode=mode)
-
-        return result
-
-    def _search_strict(self, query: str, vendor: Optional[str] = None) -> SearchResult:
-        """Search with exact case-insensitive matching.
-
-        Args:
-            query: Exact string to match.
-            vendor: Optional vendor filter.
-
-        Returns:
-            SearchResult with matching CVEs.
-        """
-        cves_df = self._ensure_cves_loaded()
-
-        if self._products_df is None:
-            return SearchResult(pl.DataFrame(schema=cves_df.schema))
-
-        query_lower = query.lower()
-
-        # Strict matching - exact case-insensitive match
-        product_filter = pl.col("product").str.to_lowercase() == query_lower
-
-        if vendor:
-            vendor_lower = vendor.lower()
-            vendor_filter = pl.col("vendor").str.to_lowercase() == vendor_lower
-            product_filter = product_filter & vendor_filter
-
-        matching_products = self._products_df.filter(product_filter)
-        cve_ids = matching_products.get_column("cve_id").unique().to_list()
-
-        # If no product matches, try vendor exact match
-        if not cve_ids:
-            vendor_filter = pl.col("vendor").str.to_lowercase() == query_lower
-            matching_products = self._products_df.filter(vendor_filter)
-            cve_ids = matching_products.get_column("cve_id").unique().to_list()
-
-        result = cves_df.filter(pl.col("cve_id").is_in(cve_ids))
-        result = result.sort("date_published", descending=True)
-        related = self._get_related_data(cve_ids)
-
-        return SearchResult(result, **related)
-
-    def _search_regex(self, query: str, vendor: Optional[str] = None) -> SearchResult:
-        """Search using regular expression pattern.
-
-        Args:
-            query: Regular expression pattern.
-            vendor: Optional vendor filter.
-
-        Returns:
-            SearchResult with matching CVEs.
-        """
-        cves_df = self._ensure_cves_loaded()
-
-        if self._products_df is None:
-            return SearchResult(pl.DataFrame(schema=cves_df.schema))
-
-        try:
-            # Test that the regex is valid
-            re.compile(query, re.IGNORECASE)
-        except re.error as e:
-            raise ValueError(f"Invalid regex pattern: {e}")
-
-        # Regex matching on product
-        product_filter = (
-            pl.col("product")
-            .str.to_lowercase()
-            .str.contains(query.lower(), literal=False)
-        )
-
-        if vendor:
-            vendor_filter = (
-                pl.col("vendor")
-                .str.to_lowercase()
-                .str.contains(vendor.lower(), literal=False)
-            )
-            product_filter = product_filter & vendor_filter
-
-        matching_products = self._products_df.filter(product_filter)
-        cve_ids = matching_products.get_column("cve_id").unique().to_list()
-
-        # If no product matches, try vendor regex
-        if not cve_ids:
-            vendor_filter = (
-                pl.col("vendor")
-                .str.to_lowercase()
-                .str.contains(query.lower(), literal=False)
-            )
-            matching_products = self._products_df.filter(vendor_filter)
-            cve_ids = matching_products.get_column("cve_id").unique().to_list()
-
-        result = cves_df.filter(pl.col("cve_id").is_in(cve_ids))
-        result = result.sort("date_published", descending=True)
-        related = self._get_related_data(cve_ids)
-
-        return SearchResult(result, **related)
-
-    def _search_fuzzy(self, query: str, vendor: Optional[str] = None) -> SearchResult:
-        """Search using fuzzy case-insensitive substring matching.
-
-        This is the default search mode - matches any substring.
-
-        Args:
-            query: Substring to search for.
-            vendor: Optional vendor filter.
-
-        Returns:
-            SearchResult with matching CVEs.
-        """
-        cves_df = self._ensure_cves_loaded()
-
-        if self._products_df is None:
-            return SearchResult(pl.DataFrame(schema=cves_df.schema))
-
-        # Escape special regex characters for safe literal-like matching
-        query_escaped = re.escape(query.lower())
-
-        # Fuzzy substring matching on product
-        product_filter = (
-            pl.col("product")
-            .str.to_lowercase()
-            .str.contains(query_escaped, literal=False)
-        )
-
-        if vendor:
-            vendor_escaped = re.escape(vendor.lower())
-            vendor_filter = (
-                pl.col("vendor")
-                .str.to_lowercase()
-                .str.contains(vendor_escaped, literal=False)
-            )
-            product_filter = product_filter & vendor_filter
-
-        matching_products = self._products_df.filter(product_filter)
-        cve_ids = matching_products.get_column("cve_id").unique().to_list()
-
-        # If no product matches, try vendor fuzzy match
-        if not cve_ids:
-            vendor_filter = (
-                pl.col("vendor")
-                .str.to_lowercase()
-                .str.contains(query_escaped, literal=False)
-            )
-            matching_products = self._products_df.filter(vendor_filter)
-            cve_ids = matching_products.get_column("cve_id").unique().to_list()
-
-        result = cves_df.filter(pl.col("cve_id").is_in(cve_ids))
-        result = result.sort("date_published", descending=True)
-        related = self._get_related_data(cve_ids)
-
-        return SearchResult(result, **related)
-
-    def filter_by_product(
-        self,
-        result: SearchResult,
-        product: str,
-        mode: SearchMode = SearchMode.FUZZY,
-    ) -> SearchResult:
-        """Filter an existing SearchResult by product name.
-
-        Args:
-            result: SearchResult to filter.
-            product: Product name to filter by.
-            mode: Search mode for matching.
-
-        Returns:
-            New SearchResult with filtered CVEs.
-        """
-        if result.products is None or len(result.products) == 0:
-            return SearchResult(pl.DataFrame(schema=result.cves.schema))
-
-        cve_ids_in_result = set(result.cves.get_column("cve_id").to_list())
-        products_in_result = result.products.filter(
-            pl.col("cve_id").is_in(cve_ids_in_result)
-        )
-
-        if mode == SearchMode.STRICT:
-            product_lower = product.lower()
-            product_filter = pl.col("product").str.to_lowercase() == product_lower
-        elif mode == SearchMode.REGEX:
-            product_filter = (
-                pl.col("product")
-                .str.to_lowercase()
-                .str.contains(product.lower(), literal=False)
-            )
-        else:  # FUZZY
-            product_escaped = re.escape(product.lower())
-            product_filter = (
-                pl.col("product")
-                .str.to_lowercase()
-                .str.contains(product_escaped, literal=False)
-            )
-
-        matching = products_in_result.filter(product_filter)
-        filtered_cve_ids = matching.get_column("cve_id").unique().to_list()
-
-        filtered_cves = result.cves.filter(pl.col("cve_id").is_in(filtered_cve_ids))
-        related = self._get_related_data(filtered_cve_ids)
-
-        return SearchResult(filtered_cves, **related)
 
     def search_products(
         self,
@@ -1892,7 +1870,6 @@ class CVESearchService:
                 }
             )
 
-        # Build filter based on mode
         if mode == SearchMode.STRICT:
             query_lower = query.lower()
             product_filter = (pl.col("product").str.to_lowercase() == query_lower) | (
@@ -1912,7 +1889,6 @@ class CVESearchService:
                 query_escaped, literal=False
             )
 
-        # Apply vendor filter if specified
         if vendor:
             if mode == SearchMode.STRICT:
                 vendor_filter = pl.col("vendor").str.to_lowercase() == vendor.lower()
@@ -1933,7 +1909,6 @@ class CVESearchService:
 
         matching = self._products_df.filter(product_filter)
 
-        # Group by vendor and product, count CVEs
         result = (
             matching.group_by(["vendor", "product"])
             .agg(
@@ -1969,3 +1944,19 @@ class CVESearchService:
                 descriptions[cve_id] = desc
 
         return descriptions
+
+    @staticmethod
+    def validate_date(date_str: str) -> bool:
+        """Validate a date string is in YYYY-MM-DD format.
+
+        Args:
+            date_str: Date string to validate.
+
+        Returns:
+            True if valid, False otherwise.
+        """
+        try:
+            datetime.strptime(date_str, "%Y-%m-%d")
+            return True
+        except ValueError:
+            return False

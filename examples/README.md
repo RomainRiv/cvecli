@@ -18,6 +18,7 @@ Runnable examples demonstrating how to use cvecli as a Python library.
 
 | File | Description |
 |------|-------------|
+| [chainable_search.py](chainable_search.py) | **Recommended**: Fluent API with chainable filters |
 | [basic_search.py](basic_search.py) | Basic CVE search by product, ID, and CWE |
 | [purl_search.py](purl_search.py) | Search by Package URL (PyPI, npm, Maven, etc.) |
 | [cpe_version_search.py](cpe_version_search.py) | CPE search with version filtering |
