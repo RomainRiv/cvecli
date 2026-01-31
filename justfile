@@ -23,11 +23,11 @@ test-cov:
 
 # Format code with Black
 format:
-    uv run black src/ tests/
+    uv run black src/ tests/ examples/
 
 # Check code formatting without making changes
 format-check:
-    uv run black --check src/ tests/
+    uv run black --check src/ tests/ examples/
 
 # Run type checking with mypy
 typecheck:
