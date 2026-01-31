@@ -1,10 +1,7 @@
 """Services module for cvecli."""
 
-from cvecli.services.artifact_fetcher import (
-    ArtifactFetcher,
-    ChecksumMismatchError,
-    ManifestIncompatibleError,
-)
+from cvecli.exceptions import ChecksumMismatchError, ManifestIncompatibleError
+from cvecli.services.artifact_fetcher import ArtifactFetcher
 from cvecli.services.downloader import DownloadService
 from cvecli.services.extractor import ExtractorService
 from cvecli.services.search import CVESearchService

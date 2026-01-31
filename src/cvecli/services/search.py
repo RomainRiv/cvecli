@@ -36,39 +36,36 @@ from typing import Any, Dict, List, Optional
 
 import polars as pl
 
-from cvecli.core.config import Config, get_config
-from cvecli.services.cpe import parse_cpe
-from cvecli.services.version import is_version_affected
-from cvecli.models.query_filters import (
-    QueryFilter,
-    IdFilter,
-    ExcludeIdsFilter,
-    ProductFilter,
-    VendorFilter,
-    CweFilter,
-    SeverityFilter,
-    CvssFilter,
-    DateFilter,
-    YearFilter,
-    StateFilter,
-    CpeFilter,
-    PurlFilter,
-    VersionFilter,
-    KevFilter,
-    RecentFilter,
-    TextSearchFilter,
-    DescriptionFilter,
-    HasMetricsFilter,
-    ReferenceTagFilter,
-)
-
-# Import from constants module for centralization
-# Re-export for backward compatibility
 from cvecli.constants import (
     SEVERITY_THRESHOLDS,
-    SeverityLevel,
     SearchMode,
+    SeverityLevel,
 )
+from cvecli.core.config import Config, get_config
+from cvecli.models.query_filters import (
+    CpeFilter,
+    CvssFilter,
+    CweFilter,
+    DateFilter,
+    DescriptionFilter,
+    ExcludeIdsFilter,
+    HasMetricsFilter,
+    IdFilter,
+    KevFilter,
+    ProductFilter,
+    PurlFilter,
+    QueryFilter,
+    RecentFilter,
+    ReferenceTagFilter,
+    SeverityFilter,
+    StateFilter,
+    TextSearchFilter,
+    VendorFilter,
+    VersionFilter,
+    YearFilter,
+)
+from cvecli.services.cpe import parse_cpe
+from cvecli.services.version import is_version_affected
 
 
 class SearchResult:

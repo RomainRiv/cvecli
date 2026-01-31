@@ -10,11 +10,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from cvecli.core.config import Config
+from cvecli.exceptions import ChecksumMismatchError, ManifestIncompatibleError
 from cvecli.services.artifact_fetcher import (
-    ArtifactFetcher,
-    ChecksumMismatchError,
-    ManifestIncompatibleError,
     SUPPORTED_SCHEMA_VERSION,
+    ArtifactFetcher,
 )
 
 
@@ -87,13 +86,16 @@ class TestChecksumMismatchError:
     """Test ChecksumMismatchError exception."""
 
     def test_error_message(self):
-        """Test error message is preserved."""
-        error = ChecksumMismatchError("Checksum mismatch for test.parquet")
+        """Test error message contains filename."""
+        error = ChecksumMismatchError("test.parquet", "abc123", "def456")
         assert "test.parquet" in str(error)
+        assert error.filename == "test.parquet"
+        assert error.expected == "abc123"
+        assert error.actual == "def456"
 
     def test_inherits_from_exception(self):
         """Should inherit from Exception."""
-        error = ChecksumMismatchError("test")
+        error = ChecksumMismatchError("test.parquet", "abc", "def")
         assert isinstance(error, Exception)
 
 

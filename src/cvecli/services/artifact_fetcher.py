@@ -18,6 +18,7 @@ from rich.progress import (
 
 from cvecli import MANIFEST_SCHEMA_VERSION
 from cvecli.core.config import Config, get_config
+from cvecli.exceptions import ChecksumMismatchError, ManifestIncompatibleError
 
 # Manifest schema version this cvecli version supports
 SUPPORTED_SCHEMA_VERSION = MANIFEST_SCHEMA_VERSION
@@ -31,25 +32,6 @@ SEMANTIC_FILES = {"cve_embeddings.parquet"}
 # Default timeouts for HTTP requests (connect timeout, read timeout) in seconds
 DEFAULT_API_TIMEOUT = (10, 30)  # 10s connect, 30s read for API calls
 DEFAULT_DOWNLOAD_TIMEOUT = (30, 300)  # 30s connect, 5min read for file downloads
-
-
-class ManifestIncompatibleError(Exception):
-    """Raised when the manifest schema version is incompatible."""
-
-    def __init__(self, remote_version: int, supported_version: int):
-        self.remote_version = remote_version
-        self.supported_version = supported_version
-        super().__init__(
-            f"Incompatible parquet schema: remote version {remote_version}, "
-            f"supported version {supported_version}. "
-            f"Please update cvecli to the latest version."
-        )
-
-
-class ChecksumMismatchError(Exception):
-    """Raised when a downloaded file's checksum doesn't match."""
-
-    pass
 
 
 class ArtifactFetcher:
@@ -168,8 +150,9 @@ class ArtifactFetcher:
             if actual_sha256 != expected_sha256:
                 dest_path.unlink()  # Remove corrupted file
                 raise ChecksumMismatchError(
-                    f"Checksum mismatch for {dest_path.name}: "
-                    f"expected {expected_sha256}, got {actual_sha256}"
+                    filename=dest_path.name,
+                    expected=expected_sha256,
+                    actual=actual_sha256,
                 )
 
     def fetch_manifest(
