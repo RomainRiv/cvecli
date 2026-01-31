@@ -13,24 +13,28 @@ install:
 sync:
     uv sync --all-extras
 
+# Generate test fixtures
+generate-fixtures:
+    uv run python tests/fixtures/generate_fixtures.py
+
 # Run tests with pytest
-test:
+test: generate-fixtures
     uv run pytest tests/ -v
 
 # Run only unit tests
-test-unit:
+test-unit: generate-fixtures
     uv run pytest tests/unit/ -v -m unit
 
 # Run only integration tests
-test-integration:
+test-integration: generate-fixtures
     uv run pytest tests/integration/ -v -m integration
 
 # Run fast tests (exclude slow and requires_real_data)
-test-fast:
+test-fast: generate-fixtures
     uv run pytest tests/ -v -m "not slow and not requires_real_data"
 
 # Run tests with coverage report
-test-cov:
+test-cov: generate-fixtures
     uv run pytest tests/ -v --cov=src/cvecli --cov-report=term-missing --cov-report=html
 
 # Format code with Black
