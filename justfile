@@ -17,6 +17,18 @@ sync:
 test:
     uv run pytest tests/ -v
 
+# Run only unit tests
+test-unit:
+    uv run pytest tests/unit/ -v -m unit
+
+# Run only integration tests
+test-integration:
+    uv run pytest tests/integration/ -v -m integration
+
+# Run fast tests (exclude slow and requires_real_data)
+test-fast:
+    uv run pytest tests/ -v -m "not slow and not requires_real_data"
+
 # Run tests with coverage report
 test-cov:
     uv run pytest tests/ -v --cov=src/cvecli --cov-report=term-missing --cov-report=html

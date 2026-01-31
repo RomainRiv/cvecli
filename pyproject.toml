@@ -70,6 +70,12 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+markers = [
+    "unit: Unit tests that run without external dependencies",
+    "integration: Integration tests that may require real data",
+    "slow: Tests that take longer to run",
+    "requires_real_data: Tests that require actual CVE database",
+]
 
 [tool.black]
 line-length = 88
