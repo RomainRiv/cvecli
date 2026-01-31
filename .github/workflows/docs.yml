@@ -1,14 +1,13 @@
 name: Documentation
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:  # Manual trigger only
 permissions:
   contents: read
   pages: write
   id-token: write
 jobs:
   deploy:
+    if: false  # Disabled for now
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
