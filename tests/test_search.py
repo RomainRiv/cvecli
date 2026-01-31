@@ -2,6 +2,7 @@
 
 import pytest
 
+from cvecli.constants import SeverityLevel
 from cvecli.services.search import (
     SEVERITY_THRESHOLDS,
     CVESearchService,
@@ -14,19 +15,19 @@ class TestSeverityThresholds:
 
     def test_severity_levels_exist(self):
         """All severity levels should be defined."""
-        assert "none" in SEVERITY_THRESHOLDS
-        assert "low" in SEVERITY_THRESHOLDS
-        assert "medium" in SEVERITY_THRESHOLDS
-        assert "high" in SEVERITY_THRESHOLDS
-        assert "critical" in SEVERITY_THRESHOLDS
+        assert SeverityLevel.NONE in SEVERITY_THRESHOLDS
+        assert SeverityLevel.LOW in SEVERITY_THRESHOLDS
+        assert SeverityLevel.MEDIUM in SEVERITY_THRESHOLDS
+        assert SeverityLevel.HIGH in SEVERITY_THRESHOLDS
+        assert SeverityLevel.CRITICAL in SEVERITY_THRESHOLDS
 
     def test_severity_ranges(self):
         """Severity ranges should be correct."""
-        assert SEVERITY_THRESHOLDS["none"] == (0.0, 0.0)
-        assert SEVERITY_THRESHOLDS["low"] == (0.1, 3.9)
-        assert SEVERITY_THRESHOLDS["medium"] == (4.0, 6.9)
-        assert SEVERITY_THRESHOLDS["high"] == (7.0, 8.9)
-        assert SEVERITY_THRESHOLDS["critical"] == (9.0, 10.0)
+        assert SEVERITY_THRESHOLDS[SeverityLevel.NONE] == (0.0, 0.0)
+        assert SEVERITY_THRESHOLDS[SeverityLevel.LOW] == (0.1, 3.9)
+        assert SEVERITY_THRESHOLDS[SeverityLevel.MEDIUM] == (4.0, 6.9)
+        assert SEVERITY_THRESHOLDS[SeverityLevel.HIGH] == (7.0, 8.9)
+        assert SEVERITY_THRESHOLDS[SeverityLevel.CRITICAL] == (9.0, 10.0)
 
 
 class TestSearchResult:
@@ -199,7 +200,7 @@ class TestCVESearchService:
     def test_by_severity_medium(self, sample_parquet_data):
         """by_severity should return CVEs with matching severity."""
         service = CVESearchService(config=sample_parquet_data)
-        result = service.by_severity("medium")
+        result = service.by_severity(SeverityLevel.MEDIUM)
 
         # CVE-2022-2196 has CVSS 5.8 (medium)
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
@@ -208,7 +209,7 @@ class TestCVESearchService:
     def test_by_severity_critical(self, sample_parquet_data):
         """by_severity should find critical CVEs."""
         service = CVESearchService(config=sample_parquet_data)
-        result = service.by_severity("critical")
+        result = service.by_severity(SeverityLevel.CRITICAL)
 
         # CVE-2024-1234 has ADP CVSS 9.8 (critical)
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
@@ -219,12 +220,12 @@ class TestCVESearchService:
         service = CVESearchService(config=sample_parquet_data)
 
         # After 2020
-        result = service.by_severity("medium", after="2020-01-01")
+        result = service.by_severity(SeverityLevel.MEDIUM, after="2020-01-01")
         cve_ids = [c["cve_id"] for c in result.to_dicts()]
         assert "CVE-2022-2196" in cve_ids
 
         # Before 2020 should not include 2022 CVE
-        result2 = service.by_severity("medium", before="2020-01-01")
+        result2 = service.by_severity(SeverityLevel.MEDIUM, before="2020-01-01")
         cve_ids2 = [c["cve_id"] for c in result2.to_dicts()]
         assert "CVE-2022-2196" not in cve_ids2
 
