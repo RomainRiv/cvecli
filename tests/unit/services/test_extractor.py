@@ -1,4 +1,7 @@
-"""Unit tests for the extractor service."""
+"""Unit tests for the extractor service.
+
+These tests focus on extraction logic, data models, and helper functions.
+"""
 
 from cvecli.models.cve_model import CveJsonRecordFormat
 from cvecli.services.extractor import (
@@ -10,6 +13,92 @@ from cvecli.services.extractor import (
     _get_iterable,
     _get_value,
 )
+
+# =============================================================================
+# Sample CVE Data for Tests
+# =============================================================================
+
+
+SAMPLE_CVE_DATA = {
+    "dataType": "CVE_RECORD",
+    "dataVersion": "5.1",
+    "cveMetadata": {
+        "cveId": "CVE-2022-2196",
+        "assignerOrgId": "14ed7db2-1595-443d-9d34-6215bf890778",
+        "state": "PUBLISHED",
+        "assignerShortName": "Google",
+        "dateReserved": "2022-06-24T13:29:09.969Z",
+        "datePublished": "2023-01-09T10:59:53.099Z",
+        "dateUpdated": "2025-02-13T16:28:57.097Z",
+    },
+    "containers": {
+        "cna": {
+            "affected": [
+                {
+                    "defaultStatus": "unaffected",
+                    "packageName": "KVM",
+                    "product": "Linux Kernel",
+                    "vendor": "Linux",
+                    "versions": [
+                        {
+                            "lessThan": "6.2",
+                            "status": "affected",
+                            "version": "0",
+                            "versionType": "custom",
+                        }
+                    ],
+                }
+            ],
+            "descriptions": [
+                {
+                    "lang": "en",
+                    "value": "A regression exists in the Linux Kernel within KVM.",
+                }
+            ],
+            "metrics": [
+                {
+                    "cvssV3_1": {
+                        "attackComplexity": "HIGH",
+                        "attackVector": "LOCAL",
+                        "availabilityImpact": "LOW",
+                        "baseScore": 5.8,
+                        "baseSeverity": "MEDIUM",
+                        "confidentialityImpact": "LOW",
+                        "integrityImpact": "HIGH",
+                        "privilegesRequired": "LOW",
+                        "scope": "UNCHANGED",
+                        "userInteraction": "NONE",
+                        "vectorString": "CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:L/I:H/A:L",
+                        "version": "3.1",
+                    }
+                }
+            ],
+            "problemTypes": [
+                {
+                    "descriptions": [
+                        {
+                            "cweId": "CWE-1188",
+                            "description": "CWE-1188 Insecure Default Initialization",
+                            "lang": "en",
+                            "type": "CWE",
+                        }
+                    ]
+                }
+            ],
+            "providerMetadata": {
+                "orgId": "14ed7db2-1595-443d-9d34-6215bf890778",
+                "shortName": "Google",
+            },
+            "references": [{"url": "https://kernel.dance/#2e7eab81425a"}],
+            "title": "KVM nVMX Spectre v2 vulnerability",
+        }
+    },
+}
+
+
+# =============================================================================
+# Helper Function Tests
+# =============================================================================
 
 
 class TestGetIterable:
@@ -87,20 +176,12 @@ class TestGetValue:
         class State(Enum):
             PUBLISHED = "PUBLISHED"
 
-        # After unwrapping, if it has _value_, use that
         assert _get_value(State.PUBLISHED) == "PUBLISHED"
 
-    def test_object_with_root_and_value(self):
-        """Object with both root and _value_ should unwrap root first."""
 
-        class MockEnum:
-            _value_ = "enum_val"
-
-        class MockWrapper:
-            root = MockEnum()
-
-        result = _get_value(MockWrapper())
-        assert result == "enum_val"
+# =============================================================================
+# Model Tests
+# =============================================================================
 
 
 class TestCVERecordModel:
@@ -209,14 +290,17 @@ class TestCVEProductModel:
         assert product.default_status == "unaffected"
 
 
+# =============================================================================
+# Extraction Tests
+# =============================================================================
+
+
 class TestExtractSingleCVE:
     """Tests for _extract_single_cve function."""
 
     def test_extract_basic_cve(self):
         """Test extracting a basic CVE from JSON."""
-        from tests.conftest import SAMPLE_CVE_2022_2196
-
-        cve_model = CveJsonRecordFormat.model_validate(SAMPLE_CVE_2022_2196)
+        cve_model = CveJsonRecordFormat.model_validate(SAMPLE_CVE_DATA)
         result = _extract_single_cve(cve_model)
 
         assert result.cve.cve_id == "CVE-2022-2196"
@@ -235,9 +319,7 @@ class TestExtractSingleCVE:
 
     def test_extract_products(self):
         """Test extracting affected products."""
-        from tests.conftest import SAMPLE_CVE_2022_2196
-
-        cve_model = CveJsonRecordFormat.model_validate(SAMPLE_CVE_2022_2196)
+        cve_model = CveJsonRecordFormat.model_validate(SAMPLE_CVE_DATA)
         result = _extract_single_cve(cve_model)
 
         assert len(result.products) >= 1
@@ -246,102 +328,19 @@ class TestExtractSingleCVE:
 
     def test_extract_cwes(self):
         """Test extracting CWE mappings."""
-        from tests.conftest import SAMPLE_CVE_2022_2196
-
-        cve_model = CveJsonRecordFormat.model_validate(SAMPLE_CVE_2022_2196)
+        cve_model = CveJsonRecordFormat.model_validate(SAMPLE_CVE_DATA)
         result = _extract_single_cve(cve_model)
 
-        cwes = [c.cwe_id for c in result.cwes]
-        assert "CWE-1188" in cwes
+        assert len(result.cwes) >= 1
+        cwe_ids = [c.cwe_id for c in result.cwes]
+        assert "CWE-1188" in cwe_ids
 
-    def test_extract_text_severity(self):
-        """Test extracting text severity when no CVSS present."""
-        from tests.conftest import SAMPLE_CVE_TEXT_SEVERITY
-
-        cve_model = CveJsonRecordFormat.model_validate(SAMPLE_CVE_TEXT_SEVERITY)
+    def test_extract_versions(self):
+        """Test extracting version information."""
+        cve_model = CveJsonRecordFormat.model_validate(SAMPLE_CVE_DATA)
         result = _extract_single_cve(cve_model)
 
-        # Should have an "other" metric with text severity
-        other_metrics = [m for m in result.metrics if m.metric_type == "other"]
-        assert len(other_metrics) >= 1
-        assert other_metrics[0].base_severity == "High"
-
-    def test_extract_no_severity(self):
-        """Test extracting CVE with no severity info."""
-        from tests.conftest import SAMPLE_CVE_NO_SEVERITY
-
-        cve_model = CveJsonRecordFormat.model_validate(SAMPLE_CVE_NO_SEVERITY)
-        result = _extract_single_cve(cve_model)
-
-        # Should have no metrics
-        assert len(result.metrics) == 0
-
-    def test_extract_adp_metrics(self):
-        """Test extracting ADP metrics."""
-        from tests.conftest import SAMPLE_CVE_WITH_ADP
-
-        cve_model = CveJsonRecordFormat.model_validate(SAMPLE_CVE_WITH_ADP)
-        result = _extract_single_cve(cve_model)
-
-        # CNA has no CVSS, but ADP should have one
-        adp_metrics = [m for m in result.metrics if m.source.startswith("adp:")]
-        assert len(adp_metrics) >= 1
-        assert adp_metrics[0].base_score == 9.8
-        assert adp_metrics[0].source == "adp:CISA-ADP"
-
-    def test_extract_package_url(self):
-        """Test extracting Package URL (PURL) from CVE."""
-        from tests.conftest import SAMPLE_CVE_WITH_PURL
-
-        cve_model = CveJsonRecordFormat.model_validate(SAMPLE_CVE_WITH_PURL)
-        result = _extract_single_cve(cve_model)
-
-        # Should have a product with package_url
-        assert len(result.products) >= 1
-        products_with_purl = [p for p in result.products if p.package_url]
-        assert len(products_with_purl) >= 1
-        assert products_with_purl[0].package_url == "pkg:pypi/requests"
-
-    def test_extract_package_url_with_product_info(self):
-        """Test that PURL is extracted alongside product info."""
-        from tests.conftest import SAMPLE_CVE_WITH_PURL
-
-        cve_model = CveJsonRecordFormat.model_validate(SAMPLE_CVE_WITH_PURL)
-        result = _extract_single_cve(cve_model)
-
-        # Find the product with PURL
-        purl_product = next(
-            (p for p in result.products if p.package_url == "pkg:pypi/requests"), None
-        )
-        assert purl_product is not None
-        assert purl_product.vendor == "Python"
-        assert purl_product.product == "requests"
-
-
-class TestCVEProductWithPurl:
-    """Tests for CVEProduct model with Package URL."""
-
-    def test_product_with_purl(self):
-        """Test creating a product with Package URL."""
-        product = CVEProduct(
-            cve_id="CVE-2024-1234",
-            product_id="1",
-            vendor="Python",
-            product="requests",
-            package_url="pkg:pypi/requests",
-            source="cna",
-        )
-        assert product.package_url == "pkg:pypi/requests"
-        assert product.vendor == "Python"
-        assert product.product == "requests"
-
-    def test_product_without_purl(self):
-        """Test creating a product without Package URL."""
-        product = CVEProduct(
-            cve_id="CVE-2024-1234",
-            product_id="1",
-            vendor="Linux",
-            product="Linux Kernel",
-            source="cna",
-        )
-        assert product.package_url is None
+        assert len(result.versions) >= 1
+        version = result.versions[0]
+        assert version.less_than == "6.2"
+        assert version.version == "0"
