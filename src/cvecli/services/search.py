@@ -13,8 +13,7 @@ Search Modes:
 
 import re
 from datetime import datetime, timedelta
-from enum import Enum
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Optional
 
 import polars as pl
 
@@ -22,31 +21,13 @@ from cvecli.core.config import Config, get_config
 from cvecli.services.cpe import parse_cpe
 from cvecli.services.version import is_version_affected
 
-# Severity levels based on CVSS scores
-SEVERITY_THRESHOLDS = {
-    "none": (0.0, 0.0),
-    "low": (0.1, 3.9),
-    "medium": (4.0, 6.9),
-    "high": (7.0, 8.9),
-    "critical": (9.0, 10.0),
-}
-
-SeverityLevel = Literal["none", "low", "medium", "high", "critical"]
-
-
-class SearchMode(Enum):
-    """Search mode for text matching.
-
-    - STRICT: Exact case-insensitive match (query must match exactly)
-    - REGEX: Regular expression pattern matching
-    - FUZZY: Case-insensitive substring matching (default, most flexible)
-    - SEMANTIC: Natural language similarity search using embeddings
-    """
-
-    STRICT = "strict"
-    REGEX = "regex"
-    FUZZY = "fuzzy"
-    SEMANTIC = "semantic"
+# Import from constants module for centralization
+# Re-export for backward compatibility
+from cvecli.constants import (
+    SEVERITY_THRESHOLDS,
+    SeverityLevel,
+    SearchMode,
+)
 
 
 class SearchResult:

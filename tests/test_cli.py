@@ -163,7 +163,7 @@ class TestCVEIDPattern:
 
     def test_valid_cve_id_patterns(self):
         """Valid CVE ID formats should match."""
-        from cvecli.cli.main import CVE_ID_PATTERN
+        from cvecli.constants import CVE_ID_PATTERN
 
         # Standard formats
         assert CVE_ID_PATTERN.match("CVE-2024-1234") is not None
@@ -176,7 +176,7 @@ class TestCVEIDPattern:
 
     def test_invalid_cve_id_patterns(self):
         """Invalid CVE ID formats should not match."""
-        from cvecli.cli.main import CVE_ID_PATTERN
+        from cvecli.constants import CVE_ID_PATTERN
 
         # Too few digits in sequence number
         assert CVE_ID_PATTERN.match("CVE-2024-123") is None
@@ -199,13 +199,13 @@ class TestCVEAutoDetect:
 
     def test_is_cve_id_with_standard_format(self):
         """Standard CVE ID should be detected."""
-        from cvecli.cli.main import CVE_ID_PATTERN
+        from cvecli.constants import CVE_ID_PATTERN
 
         assert CVE_ID_PATTERN.match("CVE-2024-1234") is not None
 
     def test_is_not_cve_id_with_product_name(self):
         """Product names should not be detected as CVE IDs."""
-        from cvecli.cli.main import CVE_ID_PATTERN
+        from cvecli.constants import CVE_ID_PATTERN
 
         # These are product searches, not CVE IDs
         assert CVE_ID_PATTERN.match("openssl") is None
@@ -214,7 +214,7 @@ class TestCVEAutoDetect:
 
     def test_is_not_cve_id_with_cwe(self):
         """CWE IDs should not be detected as CVE IDs."""
-        from cvecli.cli.main import CVE_ID_PATTERN
+        from cvecli.constants import CVE_ID_PATTERN
 
         assert CVE_ID_PATTERN.match("CWE-79") is None
         assert CVE_ID_PATTERN.match("CWE-1234") is None
