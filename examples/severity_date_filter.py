@@ -24,7 +24,7 @@ def main() -> None:
     print("Critical Severity CVEs")
     print("=" * 70)
 
-    results = search.by_severity(SeverityLevel.CRITICAL)
+    results = search.query().by_severity(SeverityLevel.CRITICAL).execute()
     print(f"Total critical CVEs: {results.count}")
 
     # Show year distribution for critical CVEs
@@ -38,7 +38,9 @@ def main() -> None:
     print("CVEs from 2024")
     print("=" * 70)
 
-    results_2024 = search.by_date_range(after="2024-01-01", before="2024-12-31")
+    results_2024 = (
+        search.query().by_date(after="2024-01-01", before="2024-12-31").execute()
+    )
     print(f"CVEs published in 2024: {results_2024.count}")
 
     # Combine with severity
@@ -53,11 +55,13 @@ def main() -> None:
     print("Combined Search: Critical Linux CVEs from 2024")
     print("=" * 70)
 
-    # Search for Linux first
-    linux_results = search.by_product("linux", "linux_kernel")
-
-    # Then filter by severity
-    critical_linux = search.filter_by_severity(linux_results, SeverityLevel.CRITICAL)
+    # Search for critical Linux kernel CVEs using chained query
+    critical_linux = (
+        search.query()
+        .by_product("linux", vendor="linux_kernel")
+        .by_severity(SeverityLevel.CRITICAL)
+        .execute()
+    )
     print(f"Critical Linux kernel CVEs (all time): {critical_linux.count}")
 
     # Filter by date using Polars on the DataFrame
@@ -77,8 +81,9 @@ def main() -> None:
     print("High Severity Apache CVEs")
     print("=" * 70)
 
-    apache_results = search.by_vendor("apache")
-    high_apache = search.filter_by_severity(apache_results, SeverityLevel.HIGH)
+    high_apache = (
+        search.query().by_vendor("apache").by_severity(SeverityLevel.HIGH).execute()
+    )
     print(f"High severity Apache CVEs: {high_apache.count}")
 
     if high_apache.count > 0:

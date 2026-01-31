@@ -22,7 +22,7 @@ def main() -> None:
     print("Searching for CVEs affecting 'apache http_server'...")
     print("=" * 60)
 
-    results = search.by_product("http_server", vendor="apache")
+    results = search.query().by_product("http_server", vendor="apache").execute()
     print(f"Found {results.count} CVEs\n")
 
     # Show first 5 results
@@ -41,7 +41,7 @@ def main() -> None:
     print("Getting details for a specific CVE...")
     print("=" * 60)
 
-    result = search.by_id("CVE-2024-38476")
+    result = search.query().by_id("CVE-2024-38476").execute()
     if result.count > 0:
         cve = result.cves.row(0, named=True)
         print(f"CVE ID: {cve['cve_id']}")
@@ -60,7 +60,7 @@ def main() -> None:
     print("Searching for SQL Injection vulnerabilities (CWE-89)...")
     print("=" * 60)
 
-    results = search.by_cwe("CWE-89")
+    results = search.query().by_cwe("CWE-89").execute()
     print(f"Found {results.count} CVEs with CWE-89")
 
 

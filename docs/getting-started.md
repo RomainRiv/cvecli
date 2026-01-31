@@ -149,18 +149,21 @@ search = CVESearchService()
 config = Config(data_dir=Path("/path/to/data"))
 search = CVESearchService(config)
 
-# Search by product
-results = search.by_product("apache", "http_server")
+# Search by product using fluent query API
+results = search.query().by_product("http_server", vendor="apache").execute()
 
 # Search by CVE ID
-result = search.by_cve_id("CVE-2024-1234")
+result = search.query().by_id("CVE-2024-1234").execute()
 
-# Search with filters
-results = search.search(
-    query="linux",
-    vendor="canonical",
-    severity="high",
-    limit=50
+# Chain multiple filters
+results = (
+    search.query()
+    .by_product("linux", fuzzy=True)
+    .by_severity("high")
+    .by_date(after="2024-01-01")
+    .sort_by("date", descending=True)
+    .limit(50)
+    .execute()
 )
 
 # Access results
