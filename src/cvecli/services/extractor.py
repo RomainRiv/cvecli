@@ -1021,18 +1021,15 @@ class ExtractorService:
         self,
         config: Optional[Config] = None,
         quiet: bool = False,
-        generate_embeddings: bool = False,
     ):
         """Initialize the extractor service.
 
         Args:
             config: Configuration instance. Uses default if not provided.
             quiet: If True, suppress progress output.
-            generate_embeddings: If True, generate embeddings after extraction.
         """
         self.config = config or get_config()
         self.quiet = quiet
-        self.generate_embeddings = generate_embeddings
 
     def extract_all(
         self, years: Optional[List[int]] = None, output_dir: Optional[Path] = None
@@ -1048,6 +1045,10 @@ class ExtractorService:
         """
         cve_dir = self.config.cve_dir
         output_dir = output_dir or self.config.data_dir
+        if (output_dir / "CURRENT").exists() or output_dir.parent.name == "snapshots":
+            raise ValueError(
+                "Build into a separate directory, not an installed database"
+            )
 
         # Determine year range
         if years:
@@ -1272,30 +1273,30 @@ class ExtractorService:
             if not self.quiet:
                 print(f"Wrote {len(tags)} tags to {tags_path}")
 
-        # Generate embeddings if requested
-        if self.generate_embeddings and descriptions:
-            from cvecli.services.embeddings import EmbeddingsService
-
-            if not self.quiet:
-                print("Generating embeddings for semantic search...")
-
-            embeddings_service = EmbeddingsService(config=self.config, quiet=self.quiet)
-
-            # Use the already-created DataFrames
-            embeddings_result = embeddings_service.generate_embeddings(
-                df_cves,
-                df_desc if descriptions else pl.DataFrame(schema=DESCRIPTION_SCHEMA),
-            )
-
-            # Save embeddings
-            embeddings_path = output_dir / "cve_embeddings.parquet"
-            embeddings_result.write_parquet(embeddings_path)
-            results_paths["embeddings"] = embeddings_path
-            stats["embeddings"] = len(embeddings_result)
-
-            if not self.quiet:
-                print(f"Wrote {len(embeddings_result)} embeddings to {embeddings_path}")
-
+        for name, schema in (
+            ("descriptions", DESCRIPTION_SCHEMA),
+            ("metrics", METRIC_SCHEMA),
+            ("products", PRODUCT_SCHEMA),
+            ("versions", VERSION_SCHEMA),
+            ("cwes", CWE_SCHEMA),
+            ("references", REFERENCE_SCHEMA),
+            ("credits", CREDIT_SCHEMA),
+            ("tags", TAG_SCHEMA),
+        ):
+            if name not in results_paths:
+                path = output_dir / f"cve_{name}.parquet"
+                pl.DataFrame(schema=schema).write_parquet(path)
+                results_paths[name] = path
+                stats[name] = 0
+        coverage = {
+            "requested_years": (
+                sorted(year_set) if year_set else list(range(start_year, end_year + 1))
+            ),
+            "input_records": len(file_args),
+            "extracted_records": len(cve_records),
+            "skipped_records": len(extraction_errors),
+        }
+        (output_dir / "coverage.json").write_text(json.dumps(coverage, indent=2))
         return {"paths": results_paths, "stats": stats}
 
     def get_cve(self, cve_id: str) -> Optional[ExtractedData]:

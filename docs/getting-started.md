@@ -1,212 +1,113 @@
-# Getting Started
+# cvecli
 
-This guide will help you install cvecli and get started with searching CVE data.
-
-## Installation
-
-### Using uv (recommended)
-
-```bash
-uv add cvecli
-```
-
-Or install as a tool:
+A small, offline-capable CLI and Python library for finding CVE records and reading
+their evidence. Download a prebuilt database once; searches do not access the network.
 
 ```bash
 uv tool install cvecli
+cvecli update
+cvecli search "apache http server"
+cvecli get CVE-2021-44228
 ```
 
-### Using pip
+Use `cvecli status` to see local readiness, source information, and coverage.
+The database lives in your operating system's user data directory, independently
+of the Python installation. Override it with `CVE_DATA_DIR` or `--data-dir`.
+
+## Find records, then inspect evidence
 
 ```bash
-pip install cvecli
+cvecli search "memory corruption" --limit 10
+cvecli products openssl
+cvecli search --vendor OpenSSL --product OpenSSL
+cvecli search --purl 'pkg:pypi/django' --min-score 7
+cvecli search --after 2024-01-01 --before 2024-12-31
+cvecli get CVE-2021-44228 CVE-2021-45046 --json > records.json
 ```
 
-### With Semantic Search Support
+Search matches all query words across titles, descriptions, vendors, and products.
+Title matches rank first, then matches across more fields, then publication date
+and CVE ID. Product and vendor filters are exact, case-insensitive matches on the
+same product entry. The default includes published records; use `--state all` to
+include rejected records.
 
-To enable AI-powered semantic search, install with the semantic extras:
+Results are candidate records, **not an assessment of installed software**.
+`get` preserves descriptions, source-labelled metrics, product version entries,
+status changes, and advisory links. It does not invent affected or fixed versions.
+PURL versions are reported as query metadata and are not evaluated.
+
+## Automation
+
+All commands accept `--json`. Responses use typed values, a schema version, and
+structured errors. Search summaries are short; `get` returns full evidence.
+There is no semantic model, embedding download, or applicability engine.
 
 ```bash
-uv add "cvecli[semantic]"
+cvecli search apache --json --limit 20 > page1.json
+cvecli search apache --json --limit 20 --offset 20 > page2.json
 ```
 
-!!! note "Semantic Search Requirements"
-    The semantic search feature requires ~500MB for the embedding model download.
+`total` counts all matches; `next_offset` is null at the end. Redirection never
+changes the limit. Keep the same query and release while paging. Exit code 0 means
+success (including an empty search), 1 means unavailable data/update failure or a
+partially missing `get`, and 2 means invalid arguments.
 
-## Initial Setup
-
-### Download the CVE Database
-
-Before you can search, you need to download the CVE database:
-
-```bash
-cvecli db update
-```
-
-This downloads pre-built Parquet files from the [cvecli-db](https://github.com/RomainRiv/cvecli-db) repository, which is much faster than processing raw JSON files.
-
-### Check Database Status
-
-```bash
-cvecli db status
-```
-
-This shows the number of CVEs in your database and the last update time.
-
-## Basic Usage
-
-### Search for CVEs
-
-```bash
-# Search by keyword (fuzzy matching)
-cvecli search "linux kernel"
-
-# Exact match
-cvecli search "linux" --mode strict
-
-# Regex pattern
-cvecli search "linux.*kernel" --mode regex
-
-# Semantic search (natural language)
-cvecli search "memory corruption in web browser" --semantic
-```
-
-### Filter Results
-
-```bash
-# By vendor
-cvecli search "windows" --vendor microsoft
-
-# By product
-cvecli search "apache" --product http_server
-
-# By severity
-cvecli search "linux" --severity critical
-
-# By CVSS score range
-cvecli search "apache" --cvss-min 7.0 --cvss-max 10.0
-
-# By date range
-cvecli search "chrome" --after 2024-01-01 --before 2024-12-31
-
-# By CWE
-cvecli search --cwe 787
-```
-
-### Search by Identifiers
-
-```bash
-# By CPE (Common Platform Enumeration)
-cvecli search --cpe "cpe:2.3:a:apache:http_server:*:*:*:*:*:*:*:*"
-
-# By PURL (Package URL) - CVE schema 5.2+
-cvecli search --purl "pkg:pypi/django"
-cvecli search --purl "pkg:npm/lodash"
-cvecli search --purl "pkg:maven/org.apache.struts/struts2-core"
-```
-
-### Get CVE Details
-
-```bash
-# Single CVE
-cvecli get CVE-2024-1234
-
-# Multiple CVEs
-cvecli get CVE-2024-1234 CVE-2024-5678
-
-# With full details
-cvecli get CVE-2024-1234 --detailed
-```
-
-### Output Formats
-
-```bash
-# Table (default)
-cvecli search "apache" --format table
-
-# JSON
-cvecli search "apache" --format json
-
-# Markdown
-cvecli search "apache" --format markdown
-
-# Save to file
-cvecli search "apache" --output results.json --format json
-```
-
-## Using as a Library
-
-cvecli can also be used as a Python library:
+## Python
 
 ```python
-from cvecli.services.search import CVESearchService
-from cvecli.core.config import Config
+from cvecli.services.search import CVESearchService, SearchRequest
 
-# Use default config
-search = CVESearchService()
-
-# Or custom data directory
-config = Config(data_dir=Path("/path/to/data"))
-search = CVESearchService(config)
-
-# Search by product using fluent query API
-results = search.query().by_product("http_server", vendor="apache").execute()
-
-# Search by CVE ID
-result = search.query().by_id("CVE-2024-1234").execute()
-
-# Chain multiple filters
-results = (
-    search.query()
-    .by_product("linux", fuzzy=True)
-    .by_severity("high")
-    .by_date(after="2024-01-01")
-    .sort_by("date", descending=True)
-    .limit(50)
-    .execute()
-)
-
-# Access results
-for cve in results.cves.iter_rows(named=True):
-    print(f"{cve['cve_id']}: {cve['state']}")
+reader = CVESearchService()
+page = reader.search(SearchRequest(query="memory corruption", limit=10))
+records = reader.get([row["id"] for row in page["results"]])
 ```
 
-## Advanced Database Management
+The CLI and Python API return the same response structure.
 
-For users who need to build the database from source:
+## Data limits and updates
+
+An absent identifier is not evidence that a product has no vulnerabilities. Source
+and coverage information may be unknown in older releases and are labelled as such.
+KEV annotations are preserved from CVE records, not independently synchronized with
+a catalog. Selected CVSS scores prefer CNA reports, then newer CVSS versions;
+`get` includes all reported metrics.
+
+Updates verify checksums, stage complete releases, and atomically activate them.
+The active and previous snapshots are retained. Long-lived readers must reopen
+after their snapshot is retired by subsequent updates. Locally built flat databases
+remain readable; missing tables produce explicit errors.
+
+## Development and database production
 
 ```bash
-# Download raw JSON files
-cvecli db build download-json
-
-# Extract to Parquet format
-cvecli db build extract-parquet
-
-# Generate embeddings for semantic search
-cvecli db build extract-embeddings
-
-# Create manifest for distribution
-cvecli db build create-manifest
+uv sync --group dev
+just test
+just check
 ```
 
-## Configuration
-
-### Environment Variables
-
-- `CVE_DATA_DIR`: Override the data directory
-- `CVE_DOWNLOAD_DIR`: Override the download directory
-- `CVE_DEFAULT_YEARS`: Number of years of CVE data to download (default: 10)
-
-### Command-line Override
-
-Most commands support `--data-dir` to override the data directory:
+Database production uses the separately installed `cvecli-build` entry point, supplied by the same cvecli package. Install `cvecli[build]` in production (the development environment already includes it):
 
 ```bash
-cvecli search "apache" --data-dir /custom/path/to/data
+uv run cvecli-build download-json --data-dir build-data
+uv run cvecli-build extract-parquet --data-dir build-data
+uv run cvecli-build create-manifest --data-dir build-data
 ```
 
-## Next Steps
+The [cvecli-db](https://github.com/RomainRiv/cvecli-db) release workflow installs
+this same package with its `build` extra and invokes these commands. All database
+production remains available from an installed package; no source checkout script
+is required.
 
-- Browse the [CLI Reference](cli/index.md) for complete command documentation
-- Check the [API Reference](api/index.md) for library usage
-- See database statistics with `cvecli stats`
+Build in a separate directory. Extraction writes empty tables when appropriate and
+records extraction coverage, including skipped records. Pydantic is a build-only
+extra (`cvecli[build]`); it is not needed for normal reference queries.
+
+## Migration
+
+This redesign replaces the fluent query API with `SearchRequest`. `db update` and
+`db status` become `update` and `status`; `stats`, semantic search, version filtering,
+CPE inference, regex/fuzzy modes, Markdown output, and output-file options are
+removed. Use `--json` instead of `--format json`, shell redirection for files, and
+`get` for full evidence. Legacy installed data can be used with `--data-dir`.
+
+MIT License. CVE data is subject to the CVE Terms of Use distributed with the package.

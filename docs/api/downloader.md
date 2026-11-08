@@ -16,11 +16,13 @@ The `DownloadService` handles downloading:
 from cvecli.services.downloader import DownloadService
 from cvecli.core.config import Config
 
-config = Config()
+from pathlib import Path
+config = Config(data_dir=Path("build-data"))
 downloader = DownloadService(config)
 
 # Download CVE data for specific years
-downloader.download_cves(years=[2024, 2025])
+downloader.download_cves()
+downloader.extract_cves(years=2)
 
 # Download all supplementary data
 downloader.download_capec()

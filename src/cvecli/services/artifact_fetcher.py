@@ -3,6 +3,14 @@
 import hashlib
 import json
 import os
+import tempfile
+import uuid
+import shutil
+import re
+import sys
+from contextlib import contextmanager
+
+import polars as pl
 from pathlib import Path
 from typing import Any, Optional
 
@@ -17,6 +25,7 @@ from rich.progress import (
 )
 
 from cvecli import MANIFEST_SCHEMA_VERSION
+from cvecli.services.search import TABLE_COLUMNS
 from cvecli.core.config import Config, get_config
 from cvecli.exceptions import ChecksumMismatchError, ManifestIncompatibleError
 
@@ -26,8 +35,56 @@ SUPPORTED_SCHEMA_VERSION = MANIFEST_SCHEMA_VERSION
 # Default cvecli-db repository
 DEFAULT_CVECLI_DB_REPO = "RomainRiv/cvecli-db"  # Update with actual repo
 
-# Files that require semantic search capability (optional)
-SEMANTIC_FILES = {"cve_embeddings.parquet"}
+# Tables required by the reference API; legacy release extras are ignored.
+REQUIRED_FILES = {
+    "cves.parquet",
+    "cve_descriptions.parquet",
+    "cve_products.parquet",
+    "cve_versions.parquet",
+    "cve_metrics.parquet",
+    "cve_references.parquet",
+    "cve_cwes.parquet",
+}
+OPTIONAL_FILES = {
+    "cve_credits.parquet",
+    "cve_tags.parquet",
+    "CVE_TERMS_OF_USE.md",
+    "NOTICE.txt",
+}
+
+
+@contextmanager
+def update_lock(root: Path):
+    """Serialize updates; the OS releases the lock even if a process crashes."""
+    with (root / ".update.lock").open("a+b") as lock:
+        if sys.platform == "win32":
+            import msvcrt
+
+            lock.write(b"0")
+            lock.flush()
+            lock.seek(0)
+            msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            yield
+        finally:
+            if sys.platform == "win32":
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+def file_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
 
 # Default timeouts for HTTP requests (connect timeout, read timeout) in seconds
 DEFAULT_API_TIMEOUT = (10, 30)  # 10s connect, 30s read for API calls
@@ -53,7 +110,7 @@ class ArtifactFetcher:
         self.config = config or get_config()
         self.quiet = quiet
         self.repo = repo or os.environ.get("CVECLI_DB_REPO", DEFAULT_CVECLI_DB_REPO)
-        self.config.ensure_directories()
+        self.config.data_dir.mkdir(parents=True, exist_ok=True)
 
     def _get_latest_release(self, include_prerelease: bool = False) -> dict[str, Any]:
         """Get the latest release from the cvecli-db repository.
@@ -99,6 +156,19 @@ class ArtifactFetcher:
         return result
 
     def _download_file(
+        self,
+        url: str,
+        dest_path: Path,
+        expected_sha256: Optional[str] = None,
+        desc: Optional[str] = None,
+    ) -> None:
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=dest_path.parent) as temporary:
+            staged = Path(temporary) / dest_path.name
+            self._download_to_path(url, staged, expected_sha256, desc)
+            os.replace(staged, dest_path)
+
+    def _download_to_path(
         self,
         url: str,
         dest_path: Path,
@@ -215,7 +285,7 @@ class ArtifactFetcher:
         Returns:
             Parsed manifest dictionary or None if not found.
         """
-        manifest_path = self.config.data_dir / "manifest.json"
+        manifest_path = self.config.database_dir / "manifest.json"
         if manifest_path.exists():
             result: dict[str, Any] = json.loads(manifest_path.read_text())
             return result
@@ -266,146 +336,89 @@ class ArtifactFetcher:
         result: bool = remote_time > local_time
         return result
 
-    def update(
-        self,
-        tag: Optional[str] = None,
-        force: bool = False,
-        include_prerelease: bool = False,
-        include_embeddings: bool = False,
-    ) -> dict:
-        """Update local parquet files from the latest release.
+    def update(self, tag: Optional[str] = None, force: bool = False) -> dict:
+        with update_lock(self.config.data_dir):
+            # Re-resolve after locking: a concurrent updater may have finished.
+            self.config.database_dir = Config(
+                data_dir=self.config.data_dir
+            ).database_dir
+            return self._update(tag, force)
 
-        Args:
-            tag: Specific release tag to download. If None, uses latest.
-            force: If True, download even if local is up-to-date.
-            include_prerelease: If True, include pre-releases when fetching latest.
-            include_embeddings: If True, download embedding files for semantic search.
-
-        Returns:
-            Dictionary with update status and downloaded files.
-        """
-        if not self.quiet:
-            print(f"Fetching release info from {self.repo}...")
-
-        # Get release info
-        if tag:
-            release = self._get_release_by_tag(tag)
-        else:
-            release = self._get_latest_release(include_prerelease=include_prerelease)
-
-        tag_name = release.get("tag_name", "unknown")
-
-        if not self.quiet:
-            print(f"Found release: {tag_name}")
-
-        # Find and download manifest first
-        manifest = self.fetch_manifest(tag, include_prerelease=include_prerelease)
-
-        # Check compatibility
+    def _update(self, tag: Optional[str], force: bool) -> dict:
+        release = self._get_release_by_tag(tag) if tag else self._get_latest_release()
+        tag_name = release["tag_name"]
+        manifest = self.fetch_manifest(tag_name)
         self.check_compatibility(manifest)
-
-        # Get release status from manifest
-        release_status = manifest.get("release_status", "draft")
-        is_prerelease = release_status == "prerelease"
-
-        # Check if update is needed
-        if not force and not self.needs_update(manifest, tag_name, include_prerelease):
-            if not self.quiet:
-                print("Local database is already up-to-date.")
-            return {"status": "up-to-date", "tag": tag_name, "downloaded": []}
-
-        # Build asset lookup
-        assets_by_name = {asset["name"]: asset for asset in release.get("assets", [])}
-
-        # Download parquet files with checksum verification
-        downloaded = []
-        skipped_semantic = []
-        files_info = manifest.get("files", [])
-
-        for file_info in files_info:
-            file_name = file_info["name"]
-            expected_sha256 = file_info.get("sha256")
-
-            # Skip embedding files unless explicitly requested
-            if file_name in SEMANTIC_FILES and not include_embeddings:
-                skipped_semantic.append(file_name)
-                continue
-
-            if file_name not in assets_by_name:
-                if not self.quiet:
-                    print(f"Warning: {file_name} not found in release assets")
-                continue
-
-            asset = assets_by_name[file_name]
-            dest_path = self.config.data_dir / file_name
-
-            if not self.quiet:
-                print(f"Downloading {file_name}...")
-
-            self._download_file(
-                asset["browser_download_url"],
-                dest_path,
-                expected_sha256=expected_sha256,
-                desc=file_name,
+        files = manifest.get("files", [])
+        names = [item["name"] for item in files]
+        if len(names) != len(set(names)) or not REQUIRED_FILES.issubset(names):
+            raise ValueError(
+                "Release manifest is incomplete or contains duplicate files"
             )
-            downloaded.append(file_name)
-
-        # Save manifest locally and store release tag for tracking
-        manifest["release_tag"] = tag_name
-        manifest_path = self.config.data_dir / "manifest.json"
-        manifest_path.write_text(json.dumps(manifest, indent=2))
-        downloaded.append("manifest.json")
-
-        if not self.quiet:
-            print(f"Successfully downloaded {len(downloaded)} files.")
-            if skipped_semantic:
-                print(
-                    f"Skipped {len(skipped_semantic)} embedding file(s). "
-                    "Use 'cvecli db update --embeddings' to download or 'cvecli db build extract-embeddings' to generate locally."
+        files = [
+            item for item in files if item["name"] in REQUIRED_FILES | OPTIONAL_FILES
+        ]
+        if any(
+            not re.fullmatch(r"[0-9a-f]{64}", item.get("sha256", "")) for item in files
+        ):
+            raise ValueError("Every database asset must have a SHA-256 checksum")
+        complete = all(
+            (path := self.config.database_dir / item["name"]).is_file()
+            and file_digest(path) == item["sha256"]
+            for item in files
+        )
+        if complete and not force and not self.needs_update(manifest, tag_name, False):
+            return {"status": "up-to-date", "tag": tag_name, "downloaded": []}
+        assets = {asset["name"]: asset for asset in release.get("assets", [])}
+        missing = [item["name"] for item in files if item["name"] not in assets]
+        if missing:
+            raise ValueError("Missing release assets: " + ", ".join(missing))
+        previous = self.config.database_dir
+        with tempfile.TemporaryDirectory(dir=self.config.data_dir) as temporary:
+            staging = Path(temporary)
+            for item in files:
+                name = item["name"]
+                self._download_file(
+                    assets[name]["browser_download_url"],
+                    staging / name,
+                    item["sha256"],
+                    name,
                 )
-
+                if name.endswith(".parquet"):
+                    schema = pl.read_parquet_schema(staging / name)
+                    table = (
+                        "cves"
+                        if name == "cves.parquet"
+                        else name.removeprefix("cve_").removesuffix(".parquet")
+                    )
+                    if not TABLE_COLUMNS.get(table, {"cve_id"}).issubset(schema):
+                        raise ValueError(f"Invalid table: {name}")
+            installed_manifest = {**manifest, "release_tag": tag_name, "files": files}
+            (staging / "manifest.json").write_text(
+                json.dumps(installed_manifest, indent=2)
+            )
+            snapshots = self.config.data_dir / "snapshots"
+            snapshots.mkdir(exist_ok=True)
+            snapshot_name = uuid.uuid4().hex
+            destination = snapshots / snapshot_name
+            os.replace(staging, destination)
+            pointer = self.config.data_dir / f".CURRENT-{snapshot_name}"
+            try:
+                pointer.write_text(snapshot_name)
+                os.replace(pointer, self.config.data_dir / "CURRENT")
+            finally:
+                pointer.unlink(missing_ok=True)
+            self.config.database_dir = destination
+            for path in snapshots.iterdir():
+                if (
+                    path not in (destination, previous)
+                    and re.fullmatch(r"[0-9a-f]{32}", path.name)
+                    and path.is_dir()
+                    and not path.is_symlink()
+                ):
+                    shutil.rmtree(path)
         return {
             "status": "updated",
             "tag": tag_name,
-            "is_prerelease": is_prerelease,
-            "downloaded": downloaded,
-            "skipped_semantic": skipped_semantic,
-            "stats": manifest.get("stats", {}),
-        }
-
-    def status(self) -> dict:
-        """Get the current status of the local database.
-
-        Returns:
-            Dictionary with local and remote status.
-        """
-        local_manifest = self.get_local_manifest()
-
-        try:
-            remote_manifest = self.fetch_manifest()
-            remote_release = self._get_latest_release()
-            remote_tag = remote_release.get("tag_name", "unknown")
-            remote_available = True
-        except Exception:
-            remote_manifest = None
-            remote_release = None
-            remote_tag = "unknown"
-            remote_available = False
-
-        needs_update = False
-        if remote_available and remote_manifest is not None:
-            needs_update = local_manifest is None or self.needs_update(
-                remote_manifest, remote_tag, False
-            )
-
-        return {
-            "local": {
-                "exists": local_manifest is not None,
-                "manifest": local_manifest,
-            },
-            "remote": {
-                "available": remote_available,
-                "manifest": remote_manifest,
-            },
-            "needs_update": needs_update,
+            "downloaded": [item["name"] for item in files],
         }

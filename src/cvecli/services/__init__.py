@@ -1,16 +1,5 @@
-"""Services module for cvecli."""
+"""Public reference API. Build services must be imported explicitly."""
 
-from cvecli.exceptions import ChecksumMismatchError, ManifestIncompatibleError
-from cvecli.services.artifact_fetcher import ArtifactFetcher
-from cvecli.services.downloader import DownloadService
-from cvecli.services.extractor import ExtractorService
-from cvecli.services.search import CVESearchService
+from cvecli.services.search import CVESearchService, ReferenceError, SearchRequest
 
-__all__ = [
-    "ArtifactFetcher",
-    "ChecksumMismatchError",
-    "DownloadService",
-    "ExtractorService",
-    "CVESearchService",
-    "ManifestIncompatibleError",
-]
+__all__ = ["CVESearchService", "ReferenceError", "SearchRequest"]

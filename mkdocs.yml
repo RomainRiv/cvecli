@@ -45,7 +45,6 @@ nav:
     - Search Service: api/search.md
     - Download Service: api/downloader.md
     - Extractor Service: api/extractor.md
-    - Embeddings Service: api/embeddings.md
     - Artifact Fetcher: api/artifact_fetcher.md
     - Configuration: api/config.md
 

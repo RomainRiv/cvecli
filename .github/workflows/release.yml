@@ -25,7 +25,21 @@ jobs:
       uses: extractions/setup-just@v2
 
     - name: Install dependencies
-      run: uv sync --all-extras
+      run: uv sync --locked --group dev --python 3.12
+
+    - name: Verify release tag matches package version
+      if: github.event_name == 'release'
+      env:
+        RELEASE_TAG: ${{ github.event.release.tag_name }}
+      run: |
+        uv run python - <<'PYTHON'
+        import os
+        from cvecli import __version__
+        expected = f"v{__version__}"
+        actual = os.environ["RELEASE_TAG"]
+        if actual != expected:
+            raise SystemExit(f"Release tag {actual!r} does not match package version {expected!r}")
+        PYTHON
 
     - name: Run checks
       run: just check

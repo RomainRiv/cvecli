@@ -14,7 +14,7 @@ import pytest
 from cvecli.core.config import Config
 from cvecli.models.cve_model import CveJsonRecordFormat
 from cvecli.services.extractor import ExtractorService, _extract_single_cve
-from cvecli.services.search import CVESearchService
+from cvecli.services.search import CVESearchService, SearchRequest
 
 # =============================================================================
 # Sample CVE JSON Data
@@ -199,16 +199,16 @@ class TestExtractionToSearchPipeline:
 
         # Search
         search = CVESearchService(config=extraction_config)
-        search_result = search.query().by_id("CVE-2022-2196").execute()
+        search_result = search.get(["CVE-2022-2196"])
 
-        assert search_result.count == 1
-        cve = search_result.to_dicts()[0]
-        assert cve["cve_id"] == "CVE-2022-2196"
+        assert search_result["total"] == 1
+        cve = search_result["results"][0]
+        assert cve["id"] == "CVE-2022-2196"
 
         # Check metric via service
-        metric = search.get_best_metric("CVE-2022-2196")
+        metric = search_result["results"][0]["cvss"]
         assert metric is not None
-        assert metric["base_score"] == 5.8
+        assert metric["score"] == 5.8
 
     def test_extract_and_search_by_product(self, extraction_config):
         """Test extracting CVEs and searching by product."""
@@ -218,10 +218,10 @@ class TestExtractionToSearchPipeline:
 
         # Search by product
         search = CVESearchService(config=extraction_config)
-        result = search.query().by_product("OpenSSL").execute()
+        result = search.search(SearchRequest(product="OpenSSL"))
 
-        assert result.count >= 1
-        cve_ids = [c["cve_id"] for c in result.to_dicts()]
+        assert result["total"] >= 1
+        cve_ids = [c["id"] for c in result["results"]]
         assert "CVE-2016-7054" in cve_ids
 
     def test_extract_and_search_by_cwe(self, extraction_config):
@@ -230,10 +230,10 @@ class TestExtractionToSearchPipeline:
         extractor.extract_all(years=[2022])
 
         search = CVESearchService(config=extraction_config)
-        result = search.query().by_cwe("CWE-1188").execute()
+        result = search.search(SearchRequest(cwe="CWE-1188"))
 
-        assert result.count >= 1
-        cve_ids = [c["cve_id"] for c in result.to_dicts()]
+        assert result["total"] >= 1
+        cve_ids = [c["id"] for c in result["results"]]
         assert "CVE-2022-2196" in cve_ids
 
     def test_extract_preserves_severity_text(self, extraction_config):
@@ -242,11 +242,15 @@ class TestExtractionToSearchPipeline:
         extractor.extract_all(years=[2016])
 
         search = CVESearchService(config=extraction_config)
-        result = search.query().by_id("CVE-2016-7054").execute()
+        result = search.get(["CVE-2016-7054"])
 
-        assert result.count == 1
+        assert result["total"] == 1
         # Check metric - should be an "other" type with text severity
-        metric = search.get_best_metric("CVE-2016-7054")
+        metric = next(
+            m
+            for m in result["results"][0]["metrics"]
+            if m.get("base_severity") == "High"
+        )
         assert metric is not None
         assert metric["base_severity"] == "High"
 

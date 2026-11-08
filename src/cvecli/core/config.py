@@ -1,6 +1,7 @@
 """Core configuration for cvecli."""
 
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -27,19 +28,39 @@ class Config:
         download_dir: Optional[Path] = None,
         default_years: Optional[int] = None,
     ):
-        # Resolve project root (assuming config.py is in src/cvecli/core/)
-        self._project_root = Path(__file__).parent.parent.parent.parent
+        if sys.platform == "darwin":
+            user_data = Path.home() / "Library" / "Application Support" / "cvecli"
+        elif os.name == "nt":
+            user_data = (
+                Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+                / "cvecli"
+            )
+        else:
+            user_data = (
+                Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+                / "cvecli"
+            )
 
         # Data directory
-        self.data_dir = data_dir or Path(
-            os.environ.get("CVE_DATA_DIR", self._project_root / DEFAULT_DATA_DIR)
-        )
+        self.data_dir = data_dir or Path(os.environ.get("CVE_DATA_DIR", user_data))
+
+        # Resolve once so all reads in this session use one coherent release.
+        self.storage_dir = self.data_dir
+        self.database_dir = self.data_dir
+        current = self.storage_dir / "CURRENT"
+        if current.exists():
+            snapshot = current.read_text().strip()
+            if (
+                not snapshot
+                or snapshot in (".", "..")
+                or Path(snapshot).name != snapshot
+            ):
+                raise ValueError("Invalid database snapshot pointer")
+            self.database_dir = self.storage_dir / "snapshots" / snapshot
 
         # Download directory
         self.download_dir = download_dir or Path(
-            os.environ.get(
-                "CVE_DOWNLOAD_DIR", self._project_root / DEFAULT_DOWNLOAD_DIR
-            )
+            os.environ.get("CVE_DOWNLOAD_DIR", self.data_dir / "download")
         )
 
         # Default years to download
@@ -55,52 +76,47 @@ class Config:
     @property
     def cves_parquet(self) -> Path:
         """Path to extracted CVEs parquet file."""
-        return self.data_dir / "cves.parquet"
+        return self.database_dir / "cves.parquet"
 
     @property
     def cve_descriptions_parquet(self) -> Path:
         """Path to CVE descriptions parquet file."""
-        return self.data_dir / "cve_descriptions.parquet"
+        return self.database_dir / "cve_descriptions.parquet"
 
     @property
     def cve_metrics_parquet(self) -> Path:
         """Path to CVE metrics parquet file."""
-        return self.data_dir / "cve_metrics.parquet"
+        return self.database_dir / "cve_metrics.parquet"
 
     @property
     def cve_products_parquet(self) -> Path:
         """Path to CVE products parquet file."""
-        return self.data_dir / "cve_products.parquet"
+        return self.database_dir / "cve_products.parquet"
 
     @property
     def cve_versions_parquet(self) -> Path:
         """Path to CVE versions parquet file."""
-        return self.data_dir / "cve_versions.parquet"
+        return self.database_dir / "cve_versions.parquet"
 
     @property
     def cve_cwes_parquet(self) -> Path:
         """Path to CVE-CWE mapping parquet file."""
-        return self.data_dir / "cve_cwes.parquet"
+        return self.database_dir / "cve_cwes.parquet"
 
     @property
     def cve_references_parquet(self) -> Path:
         """Path to CVE references parquet file."""
-        return self.data_dir / "cve_references.parquet"
+        return self.database_dir / "cve_references.parquet"
 
     @property
     def cve_credits_parquet(self) -> Path:
         """Path to CVE credits parquet file."""
-        return self.data_dir / "cve_credits.parquet"
+        return self.database_dir / "cve_credits.parquet"
 
     @property
     def cve_tags_parquet(self) -> Path:
         """Path to CVE tags parquet file."""
-        return self.data_dir / "cve_tags.parquet"
-
-    @property
-    def cve_embeddings_parquet(self) -> Path:
-        """Path to CVE embeddings parquet file for semantic search."""
-        return self.data_dir / "cve_embeddings.parquet"
+        return self.database_dir / "cve_tags.parquet"
 
     @property
     def capec_json(self) -> Path:
