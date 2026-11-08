@@ -39,8 +39,42 @@ CVE's `0` lower-bound convention and `*`, `1.*`, or `1.2.*` upper bounds are sup
 Exact single entries are not expanded into ranges. Unsupported schemes, malformed
 ranges, source conflicts, or unresolved product constraints produce unknown.
 
-The database currently exposes `affected[].cpes` and version entries. This feature
-does not evaluate `cpeApplicability` Boolean trees or infer names from free text.
-CPE lists can contain vulnerable and nonvulnerable products, so a matching name
-alone is not sufficient evidence of affected status. Each assessed result retains
-the source, matching names, original version entry/default, and the decision reason.
+## NVD coverage and end-to-end regression
+
+CVE record product CPEs are sparse. NVD's configurations are a separate data
+source; correct name matching cannot recover mappings that were never imported.
+`cvecli-build enrich-nvd` preserves NVD configurations in
+`cve_cpe_configurations.parquet` and authoritative dictionary expansions in
+`cpe_matches.parquet`. Both files are checksummed and distributed with the database.
+The optional files are additive; the base Parquet manifest schema remains 1.
+
+NVD does not declare a SemVer scheme for its range bounds. We use the expanded
+names from its CPE Match feed rather than inventing an ordering for arbitrary
+versions. Expansions must be active and agree with the configuration's range
+bounds. A known dictionary name outside an expansion does not match that range;
+unregistered names or missing expansions remain unknown. This also keeps `9.6:p1`
+distinct from `9.6:-`, and avoids folding update attributes into version strings.
+
+The 2026-11-08 NVD API response for OpenSSH 9.6p1 contains 31 CVEs. The offline
+regression in `tests/fixtures/nvd` passes that response and its match-criteria
+records through import, Parquet persistence and the public query API, then compares
+the resulting CVE IDs. Additional tests cover compressed/chunked feeds, update
+attributes, context dependencies, negation, nonvulnerable criteria, missing or
+inconsistent expansions, partial import failures, and source evidence in `get`.
+
+Search distinguishes confirmed NVD CPE membership from the broader candidate
+count, which can also include unknown/unaffected CVE-product evidence. NVD search
+membership alone does not prove that every AND/OR environment condition holds:
+for example, CVE-2008-3844 also requires a particular RHEL environment, so a query
+containing only OpenSSH remains unknown. Unknown criteria are not discarded.
+
+Production source references:
+
+- [NVD CPE Match API and expansions](https://nvd.nist.gov/developers/products)
+- [NVD data feeds](https://nvd.nist.gov/vuln/data-feeds)
+- [NIST's 2.0 feed description and chunking](https://www.nist.gov/itl/nvd)
+
+The pipeline enriches the offline database; searches do not call NVD. Existing
+CVE-only snapshots must be rebuilt/released to gain this coverage. Their absence
+of NVD data is explicitly reported. The tool does not infer CPE names from free
+text or extract CVE Record Format `cpeApplicability` blocks at present.

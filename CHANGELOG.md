@@ -6,6 +6,10 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- Enrich prebuilt databases with NVD configurations and authoritative CPE Match
+  expansions via `cvecli-build enrich-nvd`, with streamed JSON/gzip/tar imports.
+- Preserve NVD Boolean context and expose original configurations in `get`.
+- Add the official 31-CVE OpenSSH 9.6p1 result set as an offline end-to-end regression.
 - Restore explicit CPE lookup through `search --cpe NAME` and
   `SearchRequest(cpe=...)`, supporting CPE 2.3 formatted strings and legacy URIs.
   Use the embedded version or override it with `--version VERSION`.
@@ -25,11 +29,16 @@ All notable changes to this project are documented here.
 - Separate CPE string matching from CVE version ordering: CPE versions such as
   `9.1` and `9.1.0` remain distinct names. Unsupported range schemes, conflicting
   sources, missing versions, and unresolved platform constraints yield unknown.
-- Scope CPE assessments to each matched product's CPEs and version entries.
-  Full `cpeApplicability` AND/OR environment expressions are not evaluated.
+- Scope CVE-product assessments to their CPEs/version entries and evaluate NVD
+  configurations separately. Unresolved environment and negation context remains
+  unknown; CVE Record Format `cpeApplicability` blocks are not yet extracted.
 
 ### Fixed
 
+- Recover CPE mappings absent from CVE product records through NVD enrichment,
+  rather than guessing names or ordering untyped version ranges.
+- Report missing NVD coverage explicitly and distinguish confirmed NVD CPE hits
+  from broader affected/unaffected/unknown candidate counts.
 - Copy distribution notices as bytes to avoid Windows default-encoding errors
   and preserve their original contents and manifest checksums.
 - Isolate default-storage tests from host `LOCALAPPDATA` and `XDG_DATA_HOME` values.

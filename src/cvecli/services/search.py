@@ -103,6 +103,10 @@ class CVESearchService:
     def metadata(self) -> dict:
         path = self.directory / "manifest.json"
         manifest = json.loads(path.read_text()) if path.exists() else {}
+        nvd_metadata = manifest.get("nvd")
+        nvd_path = self.directory / "nvd_metadata.json"
+        if nvd_metadata is None and nvd_path.is_file():
+            nvd_metadata = json.loads(nvd_path.read_text(encoding="utf-8"))
         return {
             "release": manifest.get("release_tag"),
             "built_at": manifest.get("generated_at"),
@@ -110,6 +114,17 @@ class CVESearchService:
             "producer": manifest.get("source"),
             "source_updated_at": manifest.get("source_updated_at"),
             "coverage": manifest.get("coverage"),
+            "nvd": nvd_metadata,
+            "cpe_sources": {
+                "cve_products": True,
+                "nvd": all(
+                    (self.directory / name).is_file()
+                    for name in (
+                        "cve_cpe_configurations.parquet",
+                        "cpe_matches.parquet",
+                    )
+                ),
+            },
             "limitations": [
                 "Results describe CVE records, not whether an installed package is vulnerable.",
                 "Missing identifiers or annotations do not establish absence of vulnerabilities.",
@@ -173,6 +188,16 @@ class CVESearchService:
             related[name] = {}
             for row in self._related(name, ids).to_dicts():
                 related[name].setdefault(row["cve_id"], []).append(row)
+        nvd_details = {}
+        nvd_path = self.directory / "cve_cpe_configurations.parquet"
+        if detail and nvd_path.is_file():
+            nvd_details = {
+                row["cve_id"]: json.loads(row["configurations"])
+                for row in pl.scan_parquet(nvd_path)
+                .filter(pl.col("cve_id").is_in(ids))
+                .collect()
+                .iter_rows(named=True)
+            }
         records = []
         for row in cves.to_dicts():
             cve_id = row["cve_id"]
@@ -197,6 +222,8 @@ class CVESearchService:
                 "matched_fields": reasons.get(cve_id, []),
             }
             if detail:
+                if cve_id in nvd_details:
+                    record["nvd_configurations"] = nvd_details[cve_id]
                 record["descriptions"] = descriptions
                 record["metrics"] = related["metrics"].get(cve_id, [])
                 record["products"] = related["products"].get(cve_id, [])
@@ -260,6 +287,7 @@ class CVESearchService:
         cpe = None
         cpe_results: dict[str, list[dict]] = {}
         cpe_metadata: dict = {}
+        nvd_confirmed: set[str] = set()
         if request.cpe:
             from cvecli.services.cpe import parse_cpe, Logical
 
@@ -311,8 +339,36 @@ class CVESearchService:
                     else None
                 )
                 cpe_results, cpe_metadata = lookup(products, versions, cpe)
-                products = products.filter(pl.col("cve_id").is_in(list(cpe_results)))
-            ids = products.get_column("cve_id").unique().to_list()
+                from cvecli.services.nvd import NVDLookup
+
+                nvd = NVDLookup(self.directory)
+                allowed_ids = cves["cve_id"].to_list()
+                if request.vendor or request.product or identity:
+                    filtered_ids = set(products["cve_id"].to_list())
+                    allowed_ids = [key for key in allowed_ids if key in filtered_ids]
+                nvd_results = nvd.lookup(cpe, allowed_ids)
+                for key, evidence in nvd_results.items():
+                    cpe_results.setdefault(key, []).extend(evidence)
+                cpe_metadata["nvd_available"] = nvd.available
+                if nvd.available:
+                    cpe_metadata["scope"] = (
+                        "CVE product CPEs and NVD configurations/expansions; unresolved environment requirements remain unknown"
+                    )
+                nvd_confirmed = {
+                    key
+                    for key, evidence in nvd_results.items()
+                    if any(item.get("matched_by_nvd_expansion") for item in evidence)
+                }
+                cpe_metadata["warnings"] = (
+                    []
+                    if nvd.available
+                    else [
+                        "NVD applicability data is not installed; CPE coverage is limited to identifiers in CVE records."
+                    ]
+                )
+                ids = list(cpe_results)
+            else:
+                ids = products.get_column("cve_id").unique().to_list()
             cves = cves.filter(pl.col("cve_id").is_in(ids))
             for cve_id in ids:
                 reasons[cve_id] = [
@@ -415,6 +471,9 @@ class CVESearchService:
                 }
         response = self._response(records, total, request.offset)
         if cpe is not None:
+            cpe_metadata["nvd_cpe_matches"] = len(
+                nvd_confirmed.intersection(cves["cve_id"].to_list())
+            )
             response["cpe_query"] = {
                 "input": request.cpe,
                 "version": cpe.version,

@@ -155,6 +155,61 @@ def db_extract_parquet(
     logger.info("Parquet extraction complete: %d CVEs", stats.get("cves", 0))
 
 
+@app.command("enrich-nvd")
+def enrich_nvd(
+    data_dir: Path = typer.Option(Path("build-data"), "--data-dir", "-d"),
+    years: int = typer.Option(50, "--years", min=1),
+    cve_feed: Optional[list[Path]] = typer.Option(
+        None, "--cve-feed", help="Local NVD 2.0 CVE feeds; repeat for multiple files."
+    ),
+    match_feed: Optional[Path] = typer.Option(
+        None, "--match-feed", help="Local NVD CPE Match 2.0 JSON or tar.gz archive."
+    ),
+) -> None:
+    """Add NVD configurations and authoritative dictionary expansions for offline CPE lookup.
+
+    Downloads yearly CVE feeds and the full CPE Match archive unless local inputs
+    are supplied. The match archive is large (roughly 1 GB); import is streamed.
+    """
+    from cvecli.services.nvd import import_nvd
+
+    if (data_dir / "CURRENT").exists() or data_dir.parent.name == "snapshots":
+        raise ValueError("Enrich a build directory, not an installed snapshot")
+    config = Config(data_dir=data_dir, download_dir=data_dir)
+    if not config.cves_parquet.is_file():
+        raise ValueError("Run extract-parquet before NVD enrichment")
+    downloader = DownloadService(config)
+    downloads = data_dir / "nvd-downloads"
+    downloads.mkdir(exist_ok=True)
+
+    def download(url: str, name: str) -> Path:
+        destination = downloads / name
+        temporary = destination.with_suffix(destination.suffix + ".tmp")
+        try:
+            downloader._download_with_progress(url, temporary, name)
+            temporary.replace(destination)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return destination
+
+    if not cve_feed:
+        first, last = config.get_year_range(years)
+        cve_feed = [
+            download(
+                f"https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-{year}.json.gz",
+                f"nvdcve-2.0-{year}.json.gz",
+            )
+            for year in range(max(2002, first), last + 1)
+        ]
+    if match_feed is None:
+        match_feed = download(
+            "https://nvd.nist.gov/feeds/json/cpematch/2.0/nvdcpematch-2.0.tar.gz",
+            "nvdcpematch-2.0.tar.gz",
+        )
+    result = import_nvd(config, cve_feed, match_feed)
+    console.print(json.dumps(result, indent=2))
+
+
 @app.command("create-manifest")
 def db_create_manifest(
     data_dir: Optional[str] = typer.Option(
@@ -238,6 +293,13 @@ def db_create_manifest(
         "cve_credits.parquet",
         "cve_tags.parquet",
     ]
+
+    from cvecli.services.nvd import NVD_FILES
+
+    present = [name for name in NVD_FILES if (data_path / name).is_file()]
+    if present and len(present) != len(NVD_FILES):
+        raise ValueError("NVD enrichment is incomplete")
+    parquet_files.extend(sorted(present))
 
     # License and notice files to include from project
     license_files_info = [
@@ -351,6 +413,10 @@ def db_create_manifest(
     if coverage_path.exists():
         manifest["coverage"] = json.loads(coverage_path.read_text())
 
+    nvd_path = config.data_dir / "nvd_metadata.json"
+    if nvd_path.is_file():
+        manifest["nvd"] = json.loads(nvd_path.read_text(encoding="utf-8"))
+
     # Determine output path
     output_path = Path(output) if output else config.data_dir / "manifest.json"
 
@@ -371,10 +437,10 @@ def main() -> None:
     try:
         app()
     except ModuleNotFoundError as error:
-        if error.name != "pydantic":
+        if error.name not in ("pydantic", "ijson"):
             raise
         console.print(
-            "[red]Database extraction requires cvecli[build]. Install with: uv tool install 'cvecli[build]'[/red]"
+            "[red]Database production requires cvecli[build]. Install with: uv tool install 'cvecli[build]'[/red]"
         )
         raise SystemExit(1) from error
 
