@@ -21,12 +21,13 @@ The `ExtractorService` processes raw CVE JSON files and creates normalized Parqu
 from cvecli.services.extractor import ExtractorService
 from cvecli.core.config import Config
 
-config = Config()
+from pathlib import Path
+config = Config(data_dir=Path("build-data"))
 extractor = ExtractorService(config)
 
 # Extract all CVE data to Parquet
 stats = extractor.extract_all()
-print(f"Extracted {stats['cves']} CVEs")
+print(f"Extracted {stats['stats']['cves']} CVEs")
 ```
 
 ## API Reference

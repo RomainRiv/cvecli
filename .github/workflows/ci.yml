@@ -31,7 +31,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        uv sync --all-extras
+        uv sync --locked --group dev --python ${{ matrix.python-version }}
 
     - name: Check formatting with Black
       run: just format-check
@@ -74,7 +74,7 @@ jobs:
       uses: extractions/setup-just@v2
 
     - name: Install dependencies
-      run: uv sync --all-extras
+      run: uv sync --locked --group dev --python 3.12
 
     - name: Build package
       run: just build

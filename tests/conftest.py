@@ -160,7 +160,7 @@ def real_data_config() -> Config:
 
     config = Config()
     if not config.cves_parquet.exists():
-        pytest.skip("Real CVE data not available - run 'cvecli db update' first")
+        pytest.skip("Real CVE data not available - run 'cvecli update' first")
 
     # Verify schema is current
     try:
@@ -168,7 +168,7 @@ def real_data_config() -> Config:
         if "cve_id" not in df.columns:
             pytest.skip(
                 "Real CVE data is in old schema format - "
-                "run 'cvecli db build extract-parquet' to regenerate"
+                "run 'uv run python scripts/build_database.py extract-parquet' to regenerate"
             )
     except Exception as e:
         pytest.skip(f"Error reading parquet file: {e}")

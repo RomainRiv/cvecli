@@ -20,7 +20,7 @@ src/cvecli/
 ├── cli/          # Typer CLI (commands/, formatters/)
 ├── core/         # Config
 ├── models/       # Pydantic models
-└── services/     # Business logic (search, downloader, extractor, embeddings)
+└── services/     # Business logic (reference search, downloader, extractor)
 ```
 
 ## Essential Commands
@@ -47,7 +47,9 @@ just ci            # Full CI pipeline
 - Always use `uv run <command>`, never bare `python` or `pip`
 - Data uses Polars, not pandas
 - `cve_model.py` is auto-generated (excluded from Black)
-- Semantic search requires optional `[semantic]` extras
+- The reference CLI performs lexical search and preserves evidence; it does not assess version applicability
+- Database building is maintainer-only: `uv run cvecli-build`
+- JSON uses `--json`; the Python API uses `CVESearchService` and `SearchRequest`
 - Test fixtures are in `tests/fixtures/` (generated via `just test`)
 - Config respects `CVE_DATA_DIR` and `CVE_DOWNLOAD_DIR` env vars
 

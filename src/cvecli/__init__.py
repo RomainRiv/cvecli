@@ -1,6 +1,6 @@
 """cvecli - CLI tool for downloading, extracting, and searching CVE data."""
 
-__version__ = "0.1.1"
+__version__ = "0.2.0"
 
 # Manifest schema version - increment when parquet structure changes
 # This must match the version in cvecli-db

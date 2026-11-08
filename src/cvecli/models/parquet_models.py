@@ -494,7 +494,7 @@ def load_all_dataframes(data_dir: Path) -> CVEDataFrames:
     if not cves_path.exists():
         raise FileNotFoundError(
             f"CVE data not found at {cves_path}. "
-            "Run 'cvecli db update' or 'cvecli db build extract-parquet' first."
+            "Run 'cvecli update' or 'uv run python scripts/build_database.py extract-parquet' first."
         )
 
     return CVEDataFrames(

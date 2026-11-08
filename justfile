@@ -7,11 +7,11 @@ default:
 
 # Install the package in development mode with dev dependencies
 install:
-    uv pip install -e ".[dev]"
+    uv sync --group dev
 
 # Install all dependencies
 sync:
-    uv sync --all-extras
+    uv sync --group dev
 
 # Generate test fixtures
 generate-fixtures:

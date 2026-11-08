@@ -164,11 +164,6 @@ class TestConfigPathProperties:
         assert config.cve_tags_parquet.parent == config.data_dir
         assert config.cve_tags_parquet.name == "cve_tags.parquet"
 
-    def test_cve_embeddings_parquet(self, config):
-        """cve_embeddings_parquet should be in data_dir."""
-        assert config.cve_embeddings_parquet.parent == config.data_dir
-        assert config.cve_embeddings_parquet.name == "cve_embeddings.parquet"
-
     def test_capec_json(self, config):
         """capec_json should be in data_dir."""
         assert config.capec_json.parent == config.data_dir

@@ -28,18 +28,13 @@ classifiers = [
 ]
 dependencies = [
     "polars>=1.31.0,<2",
-    "pydantic>=2.11.7,<3",
     "requests>=2.32.3,<3",
     "typer>=0.16.0,<1",
     "rich>=14.0.0,<15",
 ]
 
 [project.optional-dependencies]
-semantic = [
-    "fastembed>=0.5.0,<1",
-    "numpy>=2.0.0,<3",
-]
-
+build = ["pydantic>=2.11.7,<3"]
 notebook = [
     "plotly>=6.0.0,<7",
     "jupyter>=1.0.0,<2",
@@ -49,6 +44,7 @@ notebook = [
 
 [project.scripts]
 cvecli = "cvecli.cli.main:main"
+cvecli-build = "cvecli.cli.build:main"
 
 [project.urls]
 Homepage = "https://github.com/RomainRiv/cvecli"
@@ -69,6 +65,7 @@ path = "src/cvecli/__init__.py"
 
 [dependency-groups]
 dev = [
+    "pydantic>=2.11.7,<3",
     "pytest>=8.0.0",
     "pytest-cov>=4.1.0",
     "black>=24.0.0",
@@ -76,8 +73,6 @@ dev = [
     "mypy>=1.8.0",
     "ty>=0.0.14",
     "types-requests>=2.32.4.20250913",
-    "fastembed>=0.5.0,<1",
-    "numpy>=2.0.0,<3",
     "datamodel-code-generator>=0.53.0",
     "mkdocs>=1.6.0",
     "mkdocs-material>=9.5.0",
@@ -86,6 +81,9 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cvecli"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"licences" = "cvecli/licences"
 
 [tool.hatch.build.targets.wheel.shared-data]
 "licences/CVE_TERMS_OF_USE.md" = "share/cvecli/licences/CVE_TERMS_OF_USE.md"
@@ -112,8 +110,8 @@ exclude = '''
 (
     \.git
   | \.venv
-  | build
-  | dist
+  | /build/
+  | /dist/
   | __pycache__
   | src/cvecli/models/cve_model\.py
 )
