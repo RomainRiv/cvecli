@@ -68,3 +68,23 @@ def test_builder_passes_years_and_directories(tmp_path, command):
         assert supplied.default_years == 3
         assert supplied.data_dir == tmp_path
         assert supplied.download_dir == tmp_path
+
+
+def test_manifest_preserves_notice_bytes(test_config, tmp_path):
+    resources = tmp_path / "resources"
+    notices = resources / "licences"
+    notices.mkdir(parents=True)
+    content = "CVE®\r\nProvided “AS IS”.\r\n".encode("utf-8")
+    for name in ("NOTICE.txt", "CVE_TERMS_OF_USE.md"):
+        (notices / name).write_bytes(content)
+    with patch("cvecli.cli.build.files", return_value=resources):
+        result = CliRunner().invoke(
+            app, ["create-manifest", "-d", str(test_config.data_dir)]
+        )
+    assert result.exit_code == 0, result.exception
+    for name in ("NOTICE.txt", "CVE_TERMS_OF_USE.md"):
+        assert (test_config.data_dir / name).read_bytes() == content
+    manifest = json.loads((test_config.data_dir / "manifest.json").read_text())
+    for item in manifest["files"]:
+        if item["name"] in ("NOTICE.txt", "CVE_TERMS_OF_USE.md"):
+            assert item["sha256"] == hashlib.sha256(content).hexdigest()

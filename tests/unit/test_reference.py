@@ -306,6 +306,8 @@ def test_snapshot_update_validation_retention_and_recovery(reference, tmp_path):
 
 def test_default_storage_is_user_owned(monkeypatch, tmp_path):
     monkeypatch.delenv("CVE_DATA_DIR", raising=False)
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     config = Config()
     assert config.data_dir.is_relative_to(tmp_path)
