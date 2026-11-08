@@ -47,7 +47,7 @@ just ci            # Full CI pipeline
 - Always use `uv run <command>`, never bare `python` or `pip`
 - Data uses Polars, not pandas
 - `cve_model.py` is auto-generated (excluded from Black)
-- The reference CLI performs lexical search and preserves evidence; it does not assess version applicability
+- The reference CLI performs lexical/CPE lookup and preserves evidence; CPE status uses affected/unaffected/unknown, with ordered ranges limited to declared SemVer
 - Database building is maintainer-only: `uv run cvecli-build`
 - JSON uses `--json`; the Python API uses `CVESearchService` and `SearchRequest`
 - Test fixtures are in `tests/fixtures/` (generated via `just test`)

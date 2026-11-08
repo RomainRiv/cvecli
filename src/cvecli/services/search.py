@@ -43,8 +43,12 @@ class SearchRequest:
     state: str = "PUBLISHED"
     limit: int = 20
     offset: int = 0
+    cpe: str | None = None
+    version: str | None = None
 
     def __post_init__(self) -> None:
+        if self.version is not None and not self.cpe:
+            raise ReferenceError("invalid_request", "--version requires --cpe")
         if not 1 <= self.limit <= 100 or self.offset < 0:
             raise ReferenceError(
                 "invalid_request", "Limit must be 1–100 and offset nonnegative."
@@ -70,7 +74,7 @@ class SearchRequest:
 
 
 class CVESearchService:
-    """A reader pinned to one database snapshot. No network calls or judgments."""
+    """A reader pinned to one database snapshot. No network calls; CPE assessments retain their source evidence."""
 
     def __init__(self, config: Config | None = None):
         self.config = config or Config()
@@ -253,12 +257,26 @@ class CVESearchService:
             )
         reasons: dict[str, list[str]] = {}
         identity = None
+        cpe = None
+        cpe_results: dict[str, list[dict]] = {}
+        cpe_metadata: dict = {}
+        if request.cpe:
+            from cvecli.services.cpe import parse_cpe, Logical
+
+            try:
+                cpe = parse_cpe(request.cpe)
+                if request.version is not None:
+                    cpe = cpe.with_version(request.version)
+                if all(isinstance(cpe.values[index], Logical) for index in (1, 2)):
+                    raise ValueError("CPE lookup requires a vendor or product name")
+            except ValueError as error:
+                raise ReferenceError("invalid_request", str(error)) from error
         if request.purl:
             try:
                 identity, _ = parse_package(request.purl)
             except ValueError as error:
                 raise ReferenceError("invalid_request", str(error)) from error
-        if request.vendor or request.product or identity:
+        if request.vendor or request.product or identity or cpe:
             products = self.table("products")
             for field, value in (
                 ("vendor", request.vendor),
@@ -277,6 +295,23 @@ class CVESearchService:
                         return_dtype=pl.Boolean,
                     )
                 )
+            if cpe is not None:
+                from cvecli.services.cpe_lookup import lookup
+
+                if "cpes" not in products.columns:
+                    raise ReferenceError(
+                        "missing_data", "CPE data is missing from the products table"
+                    )
+                products = products.filter(
+                    pl.col("cve_id").is_in(cves["cve_id"].to_list())
+                )
+                versions = (
+                    self.table("versions")
+                    if self.config.cve_versions_parquet.is_file()
+                    else None
+                )
+                cpe_results, cpe_metadata = lookup(products, versions, cpe)
+                products = products.filter(pl.col("cve_id").is_in(list(cpe_results)))
             ids = products.get_column("cve_id").unique().to_list()
             cves = cves.filter(pl.col("cve_id").is_in(ids))
             for cve_id in ids:
@@ -286,6 +321,7 @@ class CVESearchService:
                         ("vendor", request.vendor),
                         ("product", request.product),
                         ("purl", identity),
+                        ("cpe", cpe),
                     )
                     if value
                 ]
@@ -368,7 +404,23 @@ class CVESearchService:
         )
         total = len(cves)
         records = self._records(cves.slice(request.offset, request.limit), reasons)
+        if cpe is not None:
+            from cvecli.services.applicability import combine_statuses
+
+            for record in records:
+                evidence = cpe_results[record["id"]]
+                record["applicability"] = {
+                    "status": combine_statuses([item["status"] for item in evidence]),
+                    "products": evidence,
+                }
         response = self._response(records, total, request.offset)
+        if cpe is not None:
+            response["cpe_query"] = {
+                "input": request.cpe,
+                "version": cpe.version,
+                **cpe_metadata,
+            }
+
         if request.purl:
             response["package_query"] = {
                 "identity": identity,

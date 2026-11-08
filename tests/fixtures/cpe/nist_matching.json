@@ -1,0 +1,36 @@
+[
+  {
+    "source_wfn": {
+      "part": "a",
+      "vendor": "microsoft",
+      "product": "internet_explorer",
+      "version": "8.0.6001",
+      "update": "beta",
+      "edition": "ANY",
+      "language": "sp2",
+      "sw_edition": "ANY",
+      "target_sw": "ANY",
+      "target_hw": "ANY",
+      "other": "ANY"
+    },
+    "target_wfn": {
+      "part": "a",
+      "vendor": "microsoft",
+      "product": "internet_explorer",
+      "version": "ANY",
+      "update": "ANY",
+      "edition": "ANY",
+      "language": "ANY",
+      "sw_edition": "ANY",
+      "target_sw": "ANY",
+      "target_hw": "ANY",
+      "other": "ANY"
+    },
+    "relation": "subset"
+  },
+  {
+    "source": "cpe:2.3:a:adobe:*:9.*:*:PalmOS:*:*:*:*:*",
+    "target": "cpe:/a::Reader:9.3.2:-:-",
+    "relation": "disjoint"
+  }
+]

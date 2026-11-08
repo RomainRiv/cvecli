@@ -57,6 +57,12 @@ def render(response: dict, as_json: bool) -> None:
             print("[Excerpt; use get for the full record.]")
         if record.get("matched_fields"):
             print("Matched: " + ", ".join(record["matched_fields"]))
+        if "applicability" in record:
+            print("CPE applicability: " + record["applicability"]["status"])
+            for evidence in record["applicability"]["products"]:
+                print(
+                    f"  {evidence['source']}: {evidence['status']} — {evidence['reason']}"
+                )
         # Detailed evidence is displayed without invented affected/fixed conclusions.
         for field in ("descriptions", "products", "metrics", "references", "cwes"):
             if field in record:
@@ -171,6 +177,13 @@ def search(
     purl: Optional[str] = typer.Option(
         None, help="Package identity; any version is reported, not evaluated."
     ),
+    cpe: Optional[str] = typer.Option(
+        None,
+        help="CPE 2.3 name or cpe:/ URI; returns affected/unaffected/unknown evidence.",
+    ),
+    version: Optional[str] = typer.Option(
+        None, help="Concrete version to check with --cpe (overrides the CPE version)."
+    ),
     cwe: Optional[str] = typer.Option(None, help="CWE ID, e.g. CWE-79."),
     min_score: Optional[float] = typer.Option(
         None, help="Minimum selected CVSS score (0–10)."
@@ -187,7 +200,7 @@ def search(
     as_json: bool = typer.Option(False, "--json", help="Emit a single JSON response."),
     data_dir: Optional[Path] = typer.Option(None, help="Database storage root."),
 ) -> None:
-    """Find candidate CVE records. This does not assess installed software."""
+    """Find CVE records; --cpe adds product/version status with evidence."""
     request = SearchRequest(
         query,
         product,
@@ -200,6 +213,8 @@ def search(
         state,
         limit,
         offset,
+        cpe=cpe,
+        version=version,
     )
     render(service(data_dir).search(request), as_json)
 

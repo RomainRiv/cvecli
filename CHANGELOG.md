@@ -4,6 +4,36 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Restore explicit CPE lookup through `search --cpe NAME` and
+  `SearchRequest(cpe=...)`, supporting CPE 2.3 formatted strings and legacy URIs.
+  Use the embedded version or override it with `--version VERSION`.
+- Return affected, unaffected, and unknown assessments with matched CPE names,
+  source, version entry or product default, and decision reasons. Unaffected and
+  unknown candidates remain visible; evidence is limited to the returned page.
+- Match all eleven CPE attributes with directional relations, distinct ANY/NA
+  values, escaped literals, case-insensitive comparisons, and boundary wildcards.
+- Evaluate exact version entries and explicitly declared SemVer ranges using
+  python-semver, including inclusive/exclusive bounds, status changes, and defaults.
+- Add pinned offline examples from NIST's reference implementation, all 17
+  attribute relation cases in IR 7696 Table 6-2, and SemVer/CVE status regressions.
+  Document their provenance and supported scope in `docs/cpe-matching.md`.
+
+### Changed
+
+- Separate CPE string matching from CVE version ordering: CPE versions such as
+  `9.1` and `9.1.0` remain distinct names. Unsupported range schemes, conflicting
+  sources, missing versions, and unresolved platform constraints yield unknown.
+- Scope CPE assessments to each matched product's CPEs and version entries.
+  Full `cpeApplicability` AND/OR environment expressions are not evaluated.
+
+### Fixed
+
+- Copy distribution notices as bytes to avoid Windows default-encoding errors
+  and preserve their original contents and manifest checksums.
+- Isolate default-storage tests from host `LOCALAPPDATA` and `XDG_DATA_HOME` values.
+
 ## [0.2.0] - 2026-11-08
 
 ### Breaking changes

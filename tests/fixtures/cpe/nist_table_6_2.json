@@ -1,0 +1,104 @@
+[
+  {
+    "row": 1,
+    "source": "ANY",
+    "target": "ANY",
+    "relation": "equal"
+  },
+  {
+    "row": 2,
+    "source": "ANY",
+    "target": "NA",
+    "relation": "superset"
+  },
+  {
+    "row": 3,
+    "source": "ANY",
+    "target": "i",
+    "relation": "superset"
+  },
+  {
+    "row": 4,
+    "source": "ANY",
+    "target": "m*",
+    "relation": "undefined"
+  },
+  {
+    "row": 5,
+    "source": "NA",
+    "target": "ANY",
+    "relation": "subset"
+  },
+  {
+    "row": 6,
+    "source": "NA",
+    "target": "NA",
+    "relation": "equal"
+  },
+  {
+    "row": 7,
+    "source": "NA",
+    "target": "i",
+    "relation": "disjoint"
+  },
+  {
+    "row": 8,
+    "source": "NA",
+    "target": "m*",
+    "relation": "undefined"
+  },
+  {
+    "row": 9,
+    "source": "i",
+    "target": "i",
+    "relation": "equal"
+  },
+  {
+    "row": 10,
+    "source": "i",
+    "target": "k",
+    "relation": "disjoint"
+  },
+  {
+    "row": 11,
+    "source": "i",
+    "target": "m*",
+    "relation": "undefined"
+  },
+  {
+    "row": 12,
+    "source": "i",
+    "target": "NA",
+    "relation": "disjoint"
+  },
+  {
+    "row": 13,
+    "source": "i",
+    "target": "ANY",
+    "relation": "subset"
+  },
+  {
+    "row": 14,
+    "source": "m*",
+    "target": "match",
+    "relation": "superset"
+  },
+  {
+    "row": 15,
+    "source": "m*",
+    "target": "ANY",
+    "relation": "subset"
+  },
+  {
+    "row": 16,
+    "source": "m*",
+    "target": "NA",
+    "relation": "disjoint"
+  },
+  {
+    "row": 17,
+    "source": "m*",
+    "target": "m*",
+    "relation": "undefined"
+  }
+]

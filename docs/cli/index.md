@@ -9,4 +9,5 @@
 | `cvecli products words` | Discover recorded names for exact filters |
 
 All commands support `--json` and `--data-dir`. Search and product discovery
-support `--limit` and `--offset`. See [generated command help](commands.md).
+support `--limit` and `--offset`. CPE lookup uses `search --cpe NAME`, optionally
+with `--version VERSION`, and includes affected/unaffected/unknown evidence. See [generated command help](commands.md).
