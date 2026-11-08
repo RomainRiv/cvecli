@@ -79,6 +79,9 @@ jobs:
     - name: Build package
       run: just build
 
+    - name: Smoke-test isolated wheel installations
+      run: uv run --no-project python scripts/smoke_distribution.py
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
