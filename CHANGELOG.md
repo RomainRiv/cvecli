@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-08
+
+### Fixed
+
+- Fix CLI startup on fresh installations by declaring Click as a direct runtime
+  dependency and constraining Typer to `<0.26`. Typer 0.26 vendors Click and is
+  incompatible with the CLI's Click-based error handling.
+- Smoke-test built wheels in isolated environments with freshly resolved runtime
+  dependencies, for both normal and `[build]` installations, before publishing.
+  Verify command startup and structured JSON argument errors.
+
+## [0.2.0] - 2026-11-08
+
 ### Added
 
 - Enrich prebuilt databases with NVD configurations and authoritative CPE Match
@@ -42,8 +55,6 @@ All notable changes to this project are documented here.
 - Copy distribution notices as bytes to avoid Windows default-encoding errors
   and preserve their original contents and manifest checksums.
 - Isolate default-storage tests from host `LOCALAPPDATA` and `XDG_DATA_HOME` values.
-
-## [0.2.0] - 2026-11-08
 
 ### Breaking changes
 

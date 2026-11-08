@@ -556,6 +556,7 @@ toml = [
 name = "cvecli"
 source = { editable = "." }
 dependencies = [
+    { name = "click" },
     { name = "polars" },
     { name = "requests" },
     { name = "rich" },
@@ -593,6 +594,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "click", specifier = ">=8.0.0,<9" },
     { name = "ijson", marker = "extra == 'build'", specifier = ">=3,<4" },
     { name = "ipykernel", marker = "extra == 'notebook'", specifier = ">=6.29.0,<7" },
     { name = "jupyter", marker = "extra == 'notebook'", specifier = ">=1.0.0,<2" },
@@ -602,7 +604,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.32.3,<3" },
     { name = "rich", specifier = ">=14.0.0,<15" },
     { name = "semver", specifier = ">=3,<4" },
-    { name = "typer", specifier = ">=0.16.0,<1" },
+    { name = "typer", specifier = ">=0.16.0,<0.26" },
 ]
 provides-extras = ["build", "notebook"]
 
