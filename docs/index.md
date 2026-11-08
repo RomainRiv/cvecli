@@ -22,6 +22,7 @@ cvecli products openssl
 cvecli search --vendor OpenSSL --product OpenSSL
 cvecli search --purl 'pkg:pypi/django' --min-score 7
 cvecli search --after 2024-01-01 --before 2024-12-31
+cvecli search --cpe 'cpe:2.3:a:apache:http_server:2.4.51:*:*:*:*:*:*:*' --json
 cvecli get CVE-2021-44228 CVE-2021-45046 --json > records.json
 ```
 
@@ -36,11 +37,44 @@ Results are candidate records, **not an assessment of installed software**.
 status changes, and advisory links. It does not invent affected or fixed versions.
 PURL versions are reported as query metadata and are not evaluated.
 
+## CPE lookup and version status
+
+`--cpe` accepts a complete CPE 2.3 formatted string or a legacy `cpe:/` URI.
+It searches recorded CPE identities rather than guessing from vendor/product text.
+Use the version in the CPE, or override it with `--version`:
+
+```bash
+cvecli search --cpe 'cpe:/a:apache:http_server' --version 2.4.51 --json
+```
+
+All matching product candidates stay visible with `affected`, `unaffected`, or
+`unknown` in each result's `applicability` field. The evidence includes the source,
+matched CPE, directional name relation, version entry/default, and status reason.
+Conflicting source/product statuses yield `unknown`. A wildcard or unspecified
+query version cannot establish a concrete version status.
+
+CPE name matching follows NIST's string/wildcard relations: ANY and NA differ,
+quoted wildcards are literals, comparisons ignore case, and `9.1` is distinct
+from `9.1.0`. CPE matching **does not define version ordering**. CVE version
+ranges are evaluated separately using their declared scheme: exact string entries
+work across schemes; ordered ranges currently support strict SemVer 2.0.0 only.
+Unsupported/custom/Git/RPM/Maven/Python ranges remain `unknown`; numeric-looking
+strings are never silently ordered. Status changes and product defaults are applied
+according to the CVE Record Format. Exact CPE equality alone does not prove affectedness.
+
+This lookup evaluates `affected[].cpes` and associated product version entries.
+It does not evaluate full `cpeApplicability` AND/OR environment expressions.
+Additional free-text platform/module constraints remain unknown without context.
+`cpe_query` reports missing CPE coverage and invalid saved names; no candidate does
+not establish that software is safe. Older databases already preserve the required
+columns, so rebuilding the database is not required for this feature.
+
 ## Automation
 
 All commands accept `--json`. Responses use typed values, a schema version, and
 structured errors. Search summaries are short; `get` returns full evidence.
-There is no semantic model, embedding download, or applicability engine.
+CPE lookup includes a bounded product applicability assessment with evidence.
+There is no semantic model or embedding download.
 
 ```bash
 cvecli search apache --json --limit 20 > page1.json
@@ -105,9 +139,9 @@ extra (`cvecli[build]`); it is not needed for normal reference queries.
 ## Migration
 
 This redesign replaces the fluent query API with `SearchRequest`. `db update` and
-`db status` become `update` and `status`; `stats`, semantic search, version filtering,
-CPE inference, regex/fuzzy modes, Markdown output, and output-file options are
-removed. Use `--json` instead of `--format json`, shell redirection for files, and
+`db status` become `update` and `status`; `stats`, semantic search, generic version
+filtering, CPE name guessing, regex/fuzzy modes, Markdown output, and output-file
+options are removed. Explicit CPE lookup uses `--cpe` and optional `--version`. Use `--json` instead of `--format json`, shell redirection for files, and
 `get` for full evidence. Legacy installed data can be used with `--data-dir`.
 
 MIT License. CVE data is subject to the CVE Terms of Use distributed with the package.

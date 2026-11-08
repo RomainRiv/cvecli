@@ -11,8 +11,12 @@ if page["results"]:
     detail = reader.get([page["results"][0]["id"]])
 ```
 
-No version applicability is inferred. Product version records are evidence, not
-an evaluation of the caller's installation. Readers pin a snapshot; reopen a
+Use `SearchRequest(cpe="cpe:/a:vendor:product", version="1.2.3")` for CPE lookup.
+Each result includes sourced affected/unaffected/unknown assessments. All outcomes,
+including unknown and unaffected candidates, remain in the result set. CPE name
+matching is separate from CVE range ordering; only declared SemVer ranges are
+ordered. Unsupported schemes and unresolved platform context remain unknown.
+The scope is product `cpes` and version records, not full environment expressions. Readers pin a snapshot; reopen a
 reader after updating. Only the active and previous snapshots are retained.
 
 ::: cvecli.services.search.SearchRequest

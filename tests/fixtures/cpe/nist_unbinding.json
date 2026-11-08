@@ -1,0 +1,82 @@
+[
+  {
+    "input": "cpe:/a:microsoft:internet_explorer%01%01%01%01:?:beta",
+    "wfn": {
+      "part": "a",
+      "vendor": "microsoft",
+      "product": "internet_explorer????",
+      "version": "?",
+      "update": "beta",
+      "edition": "ANY",
+      "language": "ANY",
+      "sw_edition": "ANY",
+      "target_sw": "ANY",
+      "target_hw": "ANY",
+      "other": "ANY"
+    }
+  },
+  {
+    "input": "cpe:/a:microsoft:internet_explorer:8.%2a:sp%3f",
+    "wfn": {
+      "part": "a",
+      "vendor": "microsoft",
+      "product": "internet_explorer",
+      "version": "8\\.\\*",
+      "update": "sp\\?",
+      "edition": "ANY",
+      "language": "ANY",
+      "sw_edition": "ANY",
+      "target_sw": "ANY",
+      "target_hw": "ANY",
+      "other": "ANY"
+    }
+  },
+  {
+    "input": "cpe:/a:microsoft:internet_explorer:8.%02:sp%01",
+    "wfn": {
+      "part": "a",
+      "vendor": "microsoft",
+      "product": "internet_explorer",
+      "version": "8\\.*",
+      "update": "sp?",
+      "edition": "ANY",
+      "language": "ANY",
+      "sw_edition": "ANY",
+      "target_sw": "ANY",
+      "target_hw": "ANY",
+      "other": "ANY"
+    }
+  },
+  {
+    "input": "cpe:/a:hp:insight_diagnostics:7.4.0.1570::~~online~win2003~x64~",
+    "wfn": {
+      "part": "a",
+      "vendor": "hp",
+      "product": "insight_diagnostics",
+      "version": "7\\.4\\.0\\.1570",
+      "update": "ANY",
+      "edition": "ANY",
+      "language": "ANY",
+      "sw_edition": "online",
+      "target_sw": "win2003",
+      "target_hw": "x64",
+      "other": "ANY"
+    }
+  },
+  {
+    "input": "cpe:2.3:a:micr\\?osoft:internet_explorer:8.0.6001:beta:*:*:*:*:*:*",
+    "wfn": {
+      "part": "a",
+      "vendor": "micr\\?osoft",
+      "product": "internet_explorer",
+      "version": "8\\.0\\.6001",
+      "update": "beta",
+      "edition": "ANY",
+      "language": "ANY",
+      "sw_edition": "ANY",
+      "target_sw": "ANY",
+      "target_hw": "ANY",
+      "other": "ANY"
+    }
+  }
+]

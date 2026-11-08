@@ -37,6 +37,7 @@ theme:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - CPE Matching and Tests: cpe-matching.md
   - CLI Reference:
     - cli/index.md
     - Commands: cli/commands.md
