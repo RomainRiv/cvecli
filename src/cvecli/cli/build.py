@@ -274,7 +274,7 @@ def db_create_manifest(
 
         if source_path and source_path.is_file():
             target_path = config.data_dir / target_name
-            target_path.write_text(source_path.read_text())
+            target_path.write_bytes(source_path.read_bytes())
             console.print(f"[blue]Copied {target_name} to data directory[/blue]")
         else:
             console.print(
