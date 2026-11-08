@@ -33,6 +33,12 @@ def render(response: dict, as_json: bool) -> None:
         print("Ready" if response["ready"] else "Not ready: run 'cvecli update'.")
         print(f"Directory: {response['directory']}")
         print(f"Records: {response.get('records', 'unknown')}")
+        nvd = database.get("cpe_sources", {}).get("nvd", False)
+        print(
+            "CPE sources: CVE records + NVD"
+            if nvd
+            else "CPE coverage: CVE records only; NVD enrichment is absent."
+        )
         if response["missing_tables"]:
             print("Missing: " + ", ".join(response["missing_tables"]))
     if "status" in response:
@@ -64,7 +70,14 @@ def render(response: dict, as_json: bool) -> None:
                     f"  {evidence['source']}: {evidence['status']} — {evidence['reason']}"
                 )
         # Detailed evidence is displayed without invented affected/fixed conclusions.
-        for field in ("descriptions", "products", "metrics", "references", "cwes"):
+        for field in (
+            "descriptions",
+            "products",
+            "metrics",
+            "references",
+            "cwes",
+            "nvd_configurations",
+        ):
             if field in record:
                 print(f"{field}: {json.dumps(record[field], ensure_ascii=False)}")
     if "total" in response:
@@ -73,6 +86,12 @@ def render(response: dict, as_json: bool) -> None:
         )
         if response.get("next_offset") is not None:
             print(f"Next page: --offset {response['next_offset']}")
+    if response.get("cpe_query", {}).get("nvd_available"):
+        print(
+            f"NVD CPE matches: {response['cpe_query']['nvd_cpe_matches']} (candidate totals also include unaffected and unknown records)."
+        )
+    for warning in response.get("cpe_query", {}).get("warnings", []):
+        print("CPE coverage: " + warning, file=sys.stderr)
     for error in response.get("errors", []):
         print(
             f"{error['code']}: {error.get('id', '')} {error['message']}",

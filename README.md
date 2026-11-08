@@ -62,12 +62,24 @@ Unsupported/custom/Git/RPM/Maven/Python ranges remain `unknown`; numeric-looking
 strings are never silently ordered. Status changes and product defaults are applied
 according to the CVE Record Format. Exact CPE equality alone does not prove affectedness.
 
-This lookup evaluates `affected[].cpes` and associated product version entries.
-It does not evaluate full `cpeApplicability` AND/OR environment expressions.
-Additional free-text platform/module constraints remain unknown without context.
-`cpe_query` reports missing CPE coverage and invalid saved names; no candidate does
-not establish that software is safe. Older databases already preserve the required
-columns, so rebuilding the database is not required for this feature.
+Lookup combines CVE product identifiers with NVD configurations when the database
+contains NVD enrichment. NVD ranges are resolved through its published concrete
+CPE dictionary expansions, including the CPE update field (such as OpenSSH `p1`),
+without guessing a version ordering. AND/OR expressions are preserved; missing
+companion products, negation, and unresolved environment requirements remain unknown.
+CVE `cpeApplicability` blocks are not currently extracted; NVD configurations are
+supplied by the separate enrichment step.
+
+`cpe_query.nvd_cpe_matches` counts records with confirmed NVD CPE membership;
+`total` counts all candidates, including unaffected and unknown CVE-product records.
+Those numbers can differ, and an NVD CPE match can still need environmental context.
+`get` includes the original NVD configurations for inspection.
+
+Older databases contain only sparse CVE-product CPEs. The tool reports absent NVD
+coverage instead of presenting those results as complete. Updating the binary alone
+cannot recover missing mappings: rebuild/release an enriched database, then run
+`cvecli update`. Lookup stays offline. Source counts, timestamps and missing mapping
+counts are recorded in the manifest; results depend on the database snapshot.
 
 ## Automation
 
@@ -124,6 +136,7 @@ Database production uses the separately installed `cvecli-build` entry point, su
 ```bash
 uv run cvecli-build download-json --data-dir build-data
 uv run cvecli-build extract-parquet --data-dir build-data
+uv run cvecli-build enrich-nvd --years 50 --data-dir build-data
 uv run cvecli-build create-manifest --data-dir build-data
 ```
 
@@ -134,7 +147,10 @@ is required.
 
 Build in a separate directory. Extraction writes empty tables when appropriate and
 records extraction coverage, including skipped records. Pydantic is a build-only
-extra (`cvecli[build]`); it is not needed for normal reference queries.
+extra (`cvecli[build]`); it is not needed for normal reference queries. NVD
+enrichment streams the yearly CVE feeds and the CPE Match archive (roughly 1 GB
+for the latter). For offline production, pass repeatable `--cve-feed FILE` options
+and `--match-feed FILE` to `enrich-nvd`.
 
 ## Migration
 

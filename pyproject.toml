@@ -35,7 +35,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-build = ["pydantic>=2.11.7,<3"]
+build = ["pydantic>=2.11.7,<3", "ijson>=3,<4"]
 notebook = [
     "plotly>=6.0.0,<7",
     "jupyter>=1.0.0,<2",
@@ -66,6 +66,7 @@ path = "src/cvecli/__init__.py"
 
 [dependency-groups]
 dev = [
+    "ijson>=3,<4",
     "pydantic>=2.11.7,<3",
     "pytest>=8.0.0",
     "pytest-cov>=4.1.0",

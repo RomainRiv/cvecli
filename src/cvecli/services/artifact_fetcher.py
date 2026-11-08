@@ -48,6 +48,8 @@ REQUIRED_FILES = {
 OPTIONAL_FILES = {
     "cve_credits.parquet",
     "cve_tags.parquet",
+    "cve_cpe_configurations.parquet",
+    "cpe_matches.parquet",
     "CVE_TERMS_OF_USE.md",
     "NOTICE.txt",
 }
@@ -391,7 +393,20 @@ class ArtifactFetcher:
                         if name == "cves.parquet"
                         else name.removeprefix("cve_").removesuffix(".parquet")
                     )
-                    if not TABLE_COLUMNS.get(table, {"cve_id"}).issubset(schema):
+                    if name in (
+                        "cve_cpe_configurations.parquet",
+                        "cpe_matches.parquet",
+                    ):
+                        from cvecli.services.nvd import CONFIG_SCHEMA, MATCH_SCHEMA
+
+                        expected = set(
+                            CONFIG_SCHEMA
+                            if name == "cve_cpe_configurations.parquet"
+                            else MATCH_SCHEMA
+                        )
+                    else:
+                        expected = TABLE_COLUMNS.get(table, {"cve_id"})
+                    if not set(expected).issubset(schema):
                         raise ValueError(f"Invalid table: {name}")
             installed_manifest = {**manifest, "release_tag": tag_name, "files": files}
             (staging / "manifest.json").write_text(

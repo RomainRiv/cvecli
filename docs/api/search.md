@@ -16,7 +16,10 @@ Each result includes sourced affected/unaffected/unknown assessments. All outcom
 including unknown and unaffected candidates, remain in the result set. CPE name
 matching is separate from CVE range ordering; only declared SemVer ranges are
 ordered. Unsupported schemes and unresolved platform context remain unknown.
-The scope is product `cpes` and version records, not full environment expressions. Readers pin a snapshot; reopen a
+NVD-enriched databases additionally resolve NVD ranges through official dictionary
+expansions and preserve AND/OR configurations. Missing environment context remains
+unknown. `get` exposes the original NVD configuration trees. See
+[CPE coverage and regression sources](../cpe-matching.md). Readers pin a snapshot; reopen a
 reader after updating. Only the active and previous snapshots are retained.
 
 ::: cvecli.services.search.SearchRequest
